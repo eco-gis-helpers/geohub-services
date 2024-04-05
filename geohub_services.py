@@ -103,7 +103,7 @@ def rest_request(layer_list):
         uri = QgsDataSourceUri()
         uri.setParam('crs', f"EPSG:{service_crs}")
         uri.setParam('bbox', str_bbox)
-        uri.setParam('url', f"https://ws.lioservices.lrc.gov.on.ca/arcgis1071a/rest/services/LIO_OPEN_DATA/LIO_Open{l[2]}/MapServer/{l[0]}")
+        uri.setParam('url', f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open{l[2]}/MapServer/{l[0]}")
         layer = QgsVectorLayer(uri.uri(), f"{l[1]}" , 'arcgisfeatureserver')
 
         if layer.isValid():
