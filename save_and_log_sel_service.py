@@ -9,10 +9,11 @@ import datetime
     # draft completed
 
 # Explain that this only works for vector now, build out for raster/other?
-    # Maybe a seperate script for raster. I dont use raster layers much.
+    # Maybe a seperate script for raster. I dont use raster layers in QGIS much. I like GEE for raster analysis.
 
 # This only saves to .shp, build out for geopackage/other?
-    # Would make sense for an additional dialog box to ask user which file type? Could be added to READ ME dialog
+    # Would make sense for an additional dialog box to ask user which file type? Could be added to READ ME dialog.
+    # Also worth considering there are great QGIS native tools for this like 'Package Layers' in particular for geopackage
 
 # Instead of the selected layer, add functionality to to this for all checked layers?
     # complete
@@ -36,7 +37,7 @@ ext = mapCanvas.extent()
 # TODO this assumes a very specific (and probably uncommon) project, layers, styles directory structure.
 # Should be built out to take user input, maybe with this structure as one of the available defaults?
     # I actually like this structure, I just edited it to be one directory deeper, so the layers are saved with each individual QGIS project.
-
+    # also consider this requires the user to have their QGIS project saved... but what happens if it's just a temporary 'Untitled' project that someone is working in?
 
 projGISroot = projInstance.readPath("./")
 treeRoot = projInstance.layerTreeRoot()
@@ -56,15 +57,16 @@ class WarningDialog(QDialog):
 
         layout = QVBoxLayout()
 
+        save_label = QLabel("Please ensure you have saved your QGIS project")
         warning_label = QLabel("In the next window you will be asked to select the vectors layers to save and log")
         warning1_label = QLabel("The selected layers will be saved as .shp in the project directory < Basemaps < Layers")
         warning2_label = QLabel("A Style .qml file will be saved in the project directory < Styles")
         warning3_label = QLabel("A .txt log file will be created")
         warning4_label = QLabel("Note: this will not work on Raster layers")
         warning5_label = QLabel("Note: saving several large layers may be slow and risks crashing QGIS")
-        warning6_label = QLabel("Press Ok to continue or Cancel to stop the script")
+        warning6_label = QLabel("Press 'Ok' to continue or 'Cancel' to stop the script")
 
-
+        layout.addWidget(save_label)
         layout.addWidget(warning_label)
         layout.addWidget(warning1_label)
         layout.addWidget(warning2_label)
@@ -148,6 +150,7 @@ class LayerSelectionDialog(QDialog):
     def save_and_log_layers(self, selected):
 
         if not os.path.exists(basemap_dir):
+            
             os.makedirs(basemap_dir)
 
         for layer_name in selected:
@@ -170,6 +173,8 @@ class LayerSelectionDialog(QDialog):
                 act.saveNamedStyle(style_to_save)
 
             # TODO this only saves to shapefile for now
+            ## If we want more file type options we could make buttons, and on click, run a if/else function to return the correct file writer
+
             if isinstance(act, QgsVectorLayer):
                 savePath = os.path.join(basemap_dir, f"{layer_name}.shp")
 
@@ -197,7 +202,8 @@ class LayerSelectionDialog(QDialog):
         in_basemap_gp = []
         for child in basemap_group.children():
             in_basemap_gp.append(child.name())
-
+        
+        # loads in all shapefiles in the layers directory.. maybe it should just load in the selected files instead?
         for shp in glob.glob(basemap_dir+"/"+"*.shp" ):
             layer_name = os.path.split(shp)[-1].split('.')[0]
             
