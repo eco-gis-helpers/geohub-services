@@ -4,9 +4,10 @@ import os
 import glob
 import datetime
 
-# TODO
-# Write explanation here and in a dialog box
-    # draft completed
+
+
+
+
 
 # Explain that this only works for vector now, build out for raster/other?
     # Maybe a seperate script for raster. I dont use raster layers in QGIS much. I like GEE for raster analysis.
@@ -21,8 +22,23 @@ import datetime
 
 ############################################
 
+def get_web_service_layers():
+    """
+    Returns a list of names of all layers in the current QGIS project that come from an arcgisfeatureserver
+    
+    """
+    web_service_layers = []
+    
+    for layer in QgsProject.instance().mapLayers().values():
+        # Check if the layer's data provider is from esri rest service
+        data_provider = layer.dataProvider().name().lower()
+        if data_provider in ['arcgisfeatureserver']:
+            web_service_layers.append(layer.name())
+    
+    return web_service_layers
 # get a list of all the layers in the project
-project_layers = [layer.name() for layer in QgsProject.instance().mapLayers().values()]
+# project_layers = [layer.name() for layer in QgsProject.instance().mapLayers().values()]
+project_layers = get_web_service_layers()
 
 # Constants
 mapCanvas = iface.mapCanvas()
@@ -34,10 +50,7 @@ projCRS = mapCanvas.mapSettings().destinationCrs().authid()
 projCRSqgs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:')))
 ext = mapCanvas.extent()
 
-# TODO this assumes a very specific (and probably uncommon) project, layers, styles directory structure.
-# Should be built out to take user input, maybe with this structure as one of the available defaults?
-    # I actually like this structure, I just edited it to be one directory deeper, so the layers are saved with each individual QGIS project.
-    # also consider this requires the user to have their QGIS project saved... but what happens if it's just a temporary 'Untitled' project that someone is working in?
+# TODO consider this requires the user to have their QGIS project saved... but what happens if it's just a temporary 'Untitled' project that someone is working in?
 
 projGISroot = projInstance.readPath("./")
 treeRoot = projInstance.layerTreeRoot()
@@ -84,7 +97,7 @@ class WarningDialog(QDialog):
         self.setLayout(layout)
 
 
-## Layer Selection Dialog - same logic as geohub_services.py script
+## Layer Selection Dialog
 class LayerSelectionDialog(QDialog):
     def __init__(self, layers):
         super().__init__()
@@ -105,7 +118,7 @@ class LayerSelectionDialog(QDialog):
         self.checkboxes = []
         for layer in layers:
             checkbox = QCheckBox(layer)
-            checkbox.setChecked(False)  # By default, no layers are selected
+            checkbox.setChecked(True)  # By default, no layers are selected
             scroll_layout.addWidget(checkbox)
             self.checkboxes.append(checkbox)
 
