@@ -9,8 +9,7 @@ import datetime
 
 
 
-# Explain that this only works for vector now, build out for raster/other?
-    # Maybe a seperate script for raster. I dont use raster layers in QGIS much. I like GEE for raster analysis.
+# Explain that this only works for vector now.
 
 # This only saves to .shp, build out for geopackage/other?
     # Would make sense for an additional dialog box to ask user which file type? Could be added to READ ME dialog.
@@ -22,6 +21,7 @@ import datetime
 
 ############################################
 
+# TODO move this function into functions section
 def get_web_service_layers():
     """
     Returns a list of names of all layers in the current QGIS project that come from an arcgisfeatureserver
@@ -46,8 +46,8 @@ parent = iface.mainWindow()
 msgBar = iface.messageBar()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-# TODO build out to work with proj CRSs not starting with EPSG
-projCRSqgs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:')))
+# TODO Test other CRSs, so far only testing UTM 17N (EPSG:26917)
+projCRSqgs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1]))
 ext = mapCanvas.extent()
 
 # TODO consider this requires the user to have their QGIS project saved... but what happens if it's just a temporary 'Untitled' project that someone is working in?
@@ -55,6 +55,7 @@ ext = mapCanvas.extent()
 projGISroot = projInstance.readPath("./")
 treeRoot = projInstance.layerTreeRoot()
 basemap_dir = os.path.join(projGISroot, "Layers", "Basemap")
+# TODO discuss if we need this, or maybe export styles to the layers folder
 styles_dir = os.path.join(projGISroot, "Styles")
 
 

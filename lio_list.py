@@ -1,3 +1,10 @@
+# TODO (later)
+# - Add a description that shows up on the widget?
+# - Build this list programmatically based on LIO CSV?
+
+# TODO (now)
+# - Define what the parts of each sub list are. 
+
 lio_list = [
     ['33', 'Building As Symbol', '01'],
     ['28', 'Spot Height', '01'],
