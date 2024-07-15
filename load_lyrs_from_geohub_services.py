@@ -79,7 +79,8 @@ def bbox_for_service(crs_string):
     ymax = ext.yMaximum()
 
     # Setup the transform
-    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS
+    # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
+    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
     destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
     tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
 
@@ -101,30 +102,29 @@ def rest_request(layer_list):
         #Use this if you want to filter by more than bounding box
         #https://gis.stackexchange.com/questions/456167/pyqgis-add-arcgis-feature-service-layer-to-qgis-including-a-query
         uri = QgsDataSourceUri()
+        # TODO 'EPSG' handcoded here makes this function less generalizable than it could be
         uri.setParam('crs', f"EPSG:{service_crs}")
         uri.setParam('bbox', str_bbox)
         uri.setParam('url', f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open{l[2]}/MapServer/{l[0]}")
         layer = QgsVectorLayer(uri.uri(), f"{l[1]}" , 'arcgisfeatureserver')
 
-        if layer.isValid():
+        if layer.isValid() and layer.featureCount() > 0:
 
             set_layer_style(layer)
             projInstance.addMapLayer(layer, False)
             pyqgis_group.addLayer(layer)
 
-            # if projInstance.mapLayersByName(f"{l[1]}"):
-            #     print(f"{l[1]} is already in your project and won't be added")
-            # else:
-            #     set_layer_style(layer)
-            #     projInstance.addMapLayer(layer, False)
-            #     pyqgis_group.addLayer(layer)
+        elif layer.isValid() and layer.featureCount() == 0:
+            print(f"No features exist: skipped layer {l}")
 
         else:
             print(f"Invalid layer: failed to add layer {l}")
 
     [print("Loading", x[1], "layer...") for x in layer_list]
 
-############################################################################################################
+### END of FUNCTIONS #######################################################################################
+
+## CLASSES #################################################################################################
 # Make the layer selection dialog box and checkboxes        
 class WarningDialog(QDialog):
     def __init__(self, warn_str):
@@ -186,15 +186,16 @@ class LayerSelectionDialog(QDialog):
             if checkbox.isChecked():
                 selected.append(layer)
         return selected
+## END of CLASSES #####################################################################################
 
 # open the url request
+# TODO this could be hardcoded for simplicity, this logic was used to write v1 of this script but the response service crs shouldn't change...
 with urllib.request.urlopen(json_lio1) as url:
     data = json.loads(url.read().decode())
-
 # construct the url request for each selected crs
-layers = data['layers']
-
-# define where the crs will go
+# TODO Delete next line if everything still working after testing
+# layers = data['layers']
+# get the service crs from the response
 service_crs = str(data['spatialReference']['latestWkid'])
 
 # pass the service crs into the bbox function created above
