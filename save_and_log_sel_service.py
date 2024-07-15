@@ -15,8 +15,6 @@ import datetime
     # Would make sense for an additional dialog box to ask user which file type? Could be added to READ ME dialog.
     # Also worth considering there are great QGIS native tools for this like 'Package Layers' in particular for geopackage
 
-# Instead of the selected layer, add functionality to to this for all checked layers?
-    # complete
 
 
 ############################################
@@ -119,7 +117,7 @@ class LayerSelectionDialog(QDialog):
         self.checkboxes = []
         for layer in layers:
             checkbox = QCheckBox(layer)
-            checkbox.setChecked(True)  # By default, no layers are selected
+            checkbox.setChecked(True)
             scroll_layout.addWidget(checkbox)
             self.checkboxes.append(checkbox)
 

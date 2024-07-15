@@ -146,6 +146,9 @@ class WarningDialog(QDialog):
         
         #return_value = layout.exec()
 
+
+# TODO it would be great to discuss how this works exactly and how challenging it would be to implement select multiple functionality
+
 class LayerSelectionDialog(QDialog):
     def __init__(self, layers):
         super().__init__()
