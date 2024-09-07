@@ -38,7 +38,7 @@ class SingleTextInput(QInputDialog):
         
 # TODO service CRS (wkid) is passed in manually here, the geohub_services.py script automates this, but it is a little clunky.
 # TODO New function needed: that takes serv_sql_from_user_str appends the JSONslug (above) and parses the wkid for the service of interest...
-# TODO Aidan with you Qt Dialog wizardry, how would you build out SingleTextInput to do these two inputs in one dialog?
+# TODO how can we build out SingleTextInput to do these two inputs in one dialog?
 # Lots of other ideas of how this idea could be built out to.
 
 service_from_user_str, service_from_user_bOK= SingleTextInput().getText(parent, 'Choose Service', 'Choose the Geohub service...', text='https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/32')
