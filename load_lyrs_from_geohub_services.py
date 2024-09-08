@@ -2,32 +2,19 @@ import urllib.request
 import json
 from styles import layer_styles
 from lio_list import lio_list
+from func_service import *
 
 print("Starting script...")
 
-### Constants
-mapCanvas = iface.mapCanvas()
-parent = iface.mainWindow()
-projInstance = QgsProject.instance()
-projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-ext = mapCanvas.extent()
-jsonSlug = '?f=pjson'
-url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
-json_lio1 = url_lio+jsonSlug
-
-
-## Add an incrementing pyqgis group each time the script is run
-treeRoot = projInstance.layerTreeRoot()
-
+treeRoot = QgsProject.instance().layerTreeRoot()
 counter = 0
 group_name = 'pyqgis' + str(counter)
-
-# go through each group and increment the counter until it doesnt find a group with that name / number
 while (treeRoot.findGroup(group_name)):
     counter += 1
     group_name = 'pyqgis' + str(counter)
 pyqgis_group = treeRoot.insertGroup(0, group_name)
 
+## TODO Migrate these functions to the func_services method
 ### FUNCTIONS ############################################################################################
 
 # define the styles of the selected layers, from the style.py dictionary
@@ -62,32 +49,6 @@ def set_layer_style(layer):
             layer.setRenderer(renderer)
             layer.setOpacity(opacity)
             layer.triggerRepaint()
-
-
-
-# define the bounding box to query
-def bbox_for_service(crs_string):
-    """
-    This is a function that returns a bounding box in the CRS of the service, to be passed to the REST call.
-    :param crs_string: A string representing the ESRI REST Service CRS.
-    """
-
-    # Get the map extent. Remember to zoom in to area of interest before running script
-    xmin = ext.xMinimum()
-    xmax = ext.xMaximum()
-    ymin = ext.yMinimum()
-    ymax = ext.yMaximum()
-
-    # Setup the transform
-    # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
-    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
-    destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
-    tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
-
-    minPoint = tform.transform(QgsPointXY(xmin, ymin))
-    maxPoint = tform.transform(QgsPointXY(xmax, ymax))
-
-    return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
 
 
 
