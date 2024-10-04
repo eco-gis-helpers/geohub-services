@@ -40,6 +40,7 @@ def getLayoutAndMapNames():
     
     if result == QDialog.Accepted:
         layout_name, map_title = dialog.getInputs()
+        print(f"Your {map_title} map is ready in 'Layouts' ")
         if not layout_name or not map_title:
             raise Exception("Both layout name and map title must be provided!")
         return layout_name, map_title
@@ -151,17 +152,17 @@ map_info.attemptResize(QgsLayoutSize(56.645, 9.398, QgsUnitTypes.LayoutMillimete
 map_info.setBackgroundEnabled(True)
 map_info.setFrameEnabled(True)
 
-# NORTH ARROW
-north = QgsLayoutItemPicture(layout)
-north.setPicturePath("C:/PROGRA~1/QGIS3~1.16/apps/qgis/./svg//arrows/NorthArrow_04.svg")
-layout.addLayoutItem(north)
-north.attemptResize(QgsLayoutSize(17, 14, QgsUnitTypes.LayoutMillimeters))
-north.attemptMove(QgsLayoutPoint(102, 192, QgsUnitTypes.LayoutMillimeters))
+# # NORTH ARROW
+# north = QgsLayoutItemPicture(layout)
+# north.setPicturePath("C:/PROGRA~1/QGIS3~1.16/apps/qgis/./svg//arrows/NorthArrow_04.svg")
+# layout.addLayoutItem(north)
+# north.attemptResize(QgsLayoutSize(17, 14, QgsUnitTypes.LayoutMillimeters))
+# north.attemptMove(QgsLayoutPoint(102, 192, QgsUnitTypes.LayoutMillimeters))
 
 
 # # Add organization logo
-# ormlt = QgsLayoutItemPicture(layout)
-# ormlt.setPicturePath("C:/Users/Aidan/Desktop/logo.jpg")
-# layout.addLayoutItem(ormlt)
-# ormlt.attemptResize(QgsLayoutSize(81, 17, QgsUnitTypes.LayoutMillimeters))
-# ormlt.attemptMove(QgsLayoutPoint(5.5, 2.850, QgsUnitTypes.LayoutMillimeters))
+# logo = QgsLayoutItemPicture(layout)
+# logo.setPicturePath("C:/Users/Aidan/Desktop/logo.jpg")
+# layout.addLayoutItem(logo)
+# logo.attemptResize(QgsLayoutSize(81, 17, QgsUnitTypes.LayoutMillimeters))
+# logo.attemptMove(QgsLayoutPoint(5.5, 2.850, QgsUnitTypes.LayoutMillimeters))

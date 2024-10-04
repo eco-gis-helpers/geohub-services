@@ -1,5 +1,3 @@
-from func_service import *
-
 print("Starting script...")
 
 class SingleTextInput(QDialog):
