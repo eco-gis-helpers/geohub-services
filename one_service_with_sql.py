@@ -1,5 +1,13 @@
 print("Starting script...")
 
+treeRoot = QgsProject.instance().layerTreeRoot()
+counter = 0
+group_name = 'pyqgis' + str(counter)
+while (treeRoot.findGroup(group_name)):
+    counter += 1
+    group_name = 'pyqgis' + str(counter)
+pyqgis_group = treeRoot.insertGroup(0, group_name)
+
 class SingleTextInput(QDialog):
     def __init__(self):
         super().__init__()
@@ -56,6 +64,7 @@ def run_dialog():
         # Check if user provided an SQL query
         if sql_str:
             ## TODO The EPSG is hardcoded here at 4269??
+            ## TO DO - what if no pyqgis group has been made yet?
             one_rest_request(service_str, '4269', pyqgis_group, sql_str)
         else:
             one_rest_request(service_str, '4269', pyqgis_group)
