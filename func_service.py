@@ -8,8 +8,24 @@ from qgis.utils import iface
 # TODO split functions into sub-directories or multiple clearly named .py scripts, will be useful as more functions are used in this repo.
 # Build this repo out like a package?
 
+jsonSlug = '?f=pjson'
+url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
+json_lio1 = url_lio+jsonSlug
 
-# TODO this function is not yet called within the initial geohub_services.py script
+# initialize the map canvas, QGIS window, project, etc
+
+def init_project():
+    mapCanvas = iface.mapCanvas()
+    parent = iface.mainWindow()
+    projInstance = QgsProject.instance()
+    projCRS = mapCanvas.mapSettings().destinationCrs().authid()
+    ext = mapCanvas.extent()
+
+
+
+# Make the bounding box based on the map canvas for the service to query
+## TODO Make a function that extracts the bounding box from a layer
+
 def bbox_for_service(service_wkid_string, 
                      qgis_QgsProject=QgsProject, qgis_iface=iface, qgis_QgsCoordinateReferenceSystem=QgsCoordinateReferenceSystem, 
                      qgis_QgsPointXY=QgsPointXY, qgis_QgsCoordinateTransform=QgsCoordinateTransform):
@@ -47,8 +63,6 @@ def bbox_for_service(service_wkid_string,
     maxPoint = tform.transform(qgis_QgsPointXY(xmax, ymax))
 
     return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
-
-
 
 # define the REST API request by constructing the URL for each selected from the layer_list
 def one_rest_request(url_string, service_wkid_string, treeLocation_to_add_layer, sql_string=None, qgis_QgsProject=QgsProject, qgis_QgsDataSourceUri=QgsDataSourceUri,
