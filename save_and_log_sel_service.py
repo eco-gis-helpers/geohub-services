@@ -8,18 +8,22 @@ import datetime
 
 
 
+# TODO #######################################
 
-# Explain that this only works for vector now.
+# Explain that this only works for vector now...
 
 # This only saves to .shp, build out for geopackage/other?
     # Would make sense for an additional dialog box to ask user which file type? Could be added to READ ME dialog.
     # Also worth considering there are great QGIS native tools for this like 'Package Layers' in particular for geopackage
 
+# Improve the multiple selection dialog so that layer path shows on hover 
+    # (in case of duplicate name)
+    # Priority: low
+    # Difficuly: ?
+
+##############################################
 
 
-############################################
-
-# TODO move this function into functions section
 def get_web_service_layers():
     """
     Returns a list of names of all layers in the current QGIS project that come from an arcgisfeatureserver
@@ -34,8 +38,7 @@ def get_web_service_layers():
             web_service_layers.append(layer.name())
     
     return web_service_layers
-# get a list of all the layers in the project
-# project_layers = [layer.name() for layer in QgsProject.instance().mapLayers().values()]
+
 project_layers = get_web_service_layers()
 
 # Constants
@@ -71,7 +74,7 @@ class WarningDialog(QDialog):
 
         save_label = QLabel("Please ensure you have saved your QGIS project")
         warning_label = QLabel("In the next window you will be asked to select the vectors layers to save and log")
-        warning1_label = QLabel("The selected layers will be saved as .shp in the project directory < Basemaps < Layers")
+        warning1_label = QLabel("The selected layers will be saved as .shp in the project directory: './Layers/Basemap'")
         warning2_label = QLabel("A Style .qml file will be saved in the project directory < Styles")
         warning3_label = QLabel("A .txt log file will be created")
         warning4_label = QLabel("Note: this will not work on Raster layers")
@@ -210,15 +213,17 @@ class LayerSelectionDialog(QDialog):
             basemap_group = treeRoot.findGroup("basemap")
         else:
             basemap_group = treeRoot.insertGroup(0, "basemap")
-        # Load all shapefiles from the basemap directory (if they don't exist)
         in_basemap_gp = []
         for child in basemap_group.children():
             in_basemap_gp.append(child.name())
         
-        # loads in all shapefiles in the layers directory.. maybe it should just load in the selected files instead?
-        for shp in glob.glob(basemap_dir+"/"+"*.shp" ):
-            layer_name = os.path.split(shp)[-1].split('.')[0]
-            
+        # loads layers that are newly added to the Basemap dir
+        for layer_name in selected:
+        # TODO Superseded, to delete?: adding all layers in basemap group
+        # for shp in glob.glob(basemap_dir+"/"+"*.shp" ):
+            # layer_name = os.path.split(shp)[-1].split('.')[0]
+            shp = os.path.join(basemap_dir, f"{layer_name}.shp")
+
             if layer_name in in_basemap_gp:
                 print(f"'{layer_name}' already exists in your basemap group")
             else:
