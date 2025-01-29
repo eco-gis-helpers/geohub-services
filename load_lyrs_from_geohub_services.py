@@ -10,7 +10,7 @@ mapCanvas = iface.mapCanvas()
 parent = iface.mainWindow()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-ext = mapCanvas.extent()
+# ext = mapCanvas.extent()
 jsonSlug = '?f=pjson'
 url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
 json_lio1 = url_lio+jsonSlug
@@ -83,7 +83,9 @@ def canvas_bbox_for_service(crs_string):
     # Setup the transform
     # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
     sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
+    # print(sourceCrs)
     destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
+    # print(destCrs)
     tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
 
     minPoint = tform.transform(QgsPointXY(xmin, ymin))
@@ -91,38 +93,55 @@ def canvas_bbox_for_service(crs_string):
 
     return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
 
-# define the bounding box to query
+# define the bounding box from an active layer to query
+# And with multi polygons it creates a bounding box from all features
+# having issues with this when the project projection is in UTM and not WGS
+
+# does it have to use a bounding box, or could it use the exact geometry?
+# TODO make it use the exact geometry vs. creating a bounding box around the feature
+# In that case, maybe it should just use the "selected feature" as opposed to the "active layer"?
+# If so, how to deal with multiple selected features? Might have to parse their geometries and make x calls to the API? Seems like a pain
 def layer_bbox_for_service(crs_string):
     """
     This is a function that returns a bounding box in the CRS of the service, to be passed to the REST call.
     :param crs_string: A string representing the ESRI REST Service CRS.
     """
 
-   # Get the active layer's extent
+   # Get the active layer
     active_layer = iface.activeLayer()
+
+    # if no active layer, raise a value error and notify the user
+    # exiting out of the script with return is really slow for some reason, so I raise a ValueError
     if not active_layer:
-        raise ValueError("No active layer found.")
-    
-    ext = active_layer.extent()  # Get the extent of the active layer
+        print("No layer selected!")
+        iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
+        raise ValueError("No layer selected!")
+        # return
 
-    # Get the map extent. Remember to zoom in to area of interest before running script
-    xmin = ext.xMinimum()
-    xmax = ext.xMaximum()
-    ymin = ext.yMinimum()
-    ymax = ext.yMaximum()
+    # otherwise get the extent of the active layer
+    else:
 
-    # Setup the transform
-    # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
-    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
-    destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
-    tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
+        ext = active_layer.extent()  # Get the extent of the active layer
 
-    minPoint = tform.transform(QgsPointXY(xmin, ymin))
-    maxPoint = tform.transform(QgsPointXY(xmax, ymax))
+        # here is where we'd have to change to use the geometry instead of the extent?
+        # Get the active layer extent
+        xmin = ext.xMinimum()
+        xmax = ext.xMaximum()
+        ymin = ext.yMinimum()
+        ymax = ext.yMaximum()
 
-    return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
+        # Setup the transform as per usual
+        # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
+        sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
+        # print(sourceCrs)
+        destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
+        # print(destCrs)
+        tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
 
+        minPoint = tform.transform(QgsPointXY(xmin, ymin))
+        maxPoint = tform.transform(QgsPointXY(xmax, ymax))
 
+        return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
 
 # define the REST API request by constructing the URL for each selected from the layer_list
 def rest_request(layer_list):
@@ -148,7 +167,7 @@ def rest_request(layer_list):
             pyqgis_group.addLayer(layer)
 
         elif layer.isValid() and layer.featureCount() == 0:
-            print(f"No features exist: skipped layer {l}")
+            print(f"No features exist: skipped layer {l}. Check your projection")
 
         else:
             print(f"Invalid layer: failed to add layer {l}")
@@ -253,12 +272,11 @@ with urllib.request.urlopen(json_lio1) as url:
 # TODO Delete next line if everything still working after testing
 # layers = data['layers']
 # get the service crs from the response
+
+## dont think these are needed here anymore - we call the service_crs and bbox once the user selects which bbox they want to use (canvas or layer)
 service_crs = str(data['spatialReference']['latestWkid'])
-
-
-
 # pass the service crs into the bbox function created above
-str_bbox = layer_bbox_for_service(service_crs)
+# str_bbox = canvas_bbox_for_service(service_crs)
 
 # make the warning dialog string and pass it to the class above
 warn_str = 'Please make sure you are zoomed in sufficiently!\nOtherwise QGIS may crash...'
@@ -289,15 +307,4 @@ if warn_dialog.exec_() == QDialog.Accepted:
         print("User clicked Cancel. Stopping script.")
 else:
     print("User clicked Cancel. Stopping script.")
-
-
-    
-
-
-
-
-
-
-
-
 
