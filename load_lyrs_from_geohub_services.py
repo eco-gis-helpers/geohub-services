@@ -10,7 +10,7 @@ mapCanvas = iface.mapCanvas()
 parent = iface.mainWindow()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-# ext = mapCanvas.extent()
+# ext = mapCanvas.extent() # the extent will change based on if the user selects "canvas" or "layer"
 jsonSlug = '?f=pjson'
 url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
 json_lio1 = url_lio+jsonSlug
