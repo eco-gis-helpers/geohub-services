@@ -5,113 +5,30 @@ from lio_list import lio_list
 
 print("Starting script...")
 
-
-######### FUNCTIONS #############
-# Constants
-
-jsonSlug = '?f=pjson'
-url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
-json_lio1 = url_lio+jsonSlug
-
-# Initializing qgis params
+### Constants
 mapCanvas = iface.mapCanvas()
 parent = iface.mainWindow()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
 ext = mapCanvas.extent()
+jsonSlug = '?f=pjson'
+url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
+json_lio1 = url_lio+jsonSlug
 
-treeRoot = QgsProject.instance().layerTreeRoot()
+
+## Add an incrementing pyqgis group each time the script is run
+treeRoot = projInstance.layerTreeRoot()
+
 counter = 0
 group_name = 'pyqgis' + str(counter)
+
+# go through each group and increment the counter until it doesnt find a group with that name / number
 while (treeRoot.findGroup(group_name)):
     counter += 1
     group_name = 'pyqgis' + str(counter)
 pyqgis_group = treeRoot.insertGroup(0, group_name)
 
-
-# Make the bounding box based on the map canvas for the service to query
-## TODO Make a function that extracts the bounding box from a layer
-
-def bbox_for_service(service_wkid_string, 
-                     qgis_QgsProject=QgsProject, qgis_iface=iface, qgis_QgsCoordinateReferenceSystem=QgsCoordinateReferenceSystem, 
-                     qgis_QgsPointXY=QgsPointXY, qgis_QgsCoordinateTransform=QgsCoordinateTransform):
-    """
-    This function returns a bounding box in the CRS of the service, to be passed to the REST call.
-
-    Parameters:
-        service_wkid_string (str): A string representing the ESRI REST Service CRS wkid (number).
-        qgis_QgsProject (QgsProject): The QgsProject object. Default is QgsProject.
-        qgis_iface (QgisInterface): The QGIS interface object. Default is iface.
-        qgis_QgsCoordinateReferenceSystem (QgsCoordinateReferenceSystem): The QgsCoordinateReferenceSystem object. Default is QgsCoordinateReferenceSystem.
-        qgis_QgsPointXY (QgsPointXY): The QgsPointXY object. Default is QgsPointXY.
-        qgis_QgsCoordinateTransform (QgsCoordinateTransform): The QgsCoordinateTransform object. Default is QgsCoordinateTransform.
-
-    Returns:
-        str: A string representing the bounding box coordinates in the CRS of the service, formatted as "xmin,ymin,xmax,ymax".
-    """
-    mapCanvas = qgis_iface.mapCanvas()
-    projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-    projInstance = qgis_QgsProject.instance()
-    ext = mapCanvas.extent()
-
-    # Get the map extent. Remember to zoom in to area of interest before running script
-    xmin = ext.xMinimum()
-    xmax = ext.xMaximum()
-    ymin = ext.yMinimum()
-    ymax = ext.yMaximum()
-
-    # Setup the transform
-    sourceCrs = qgis_QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
-    destCrs = qgis_QgsCoordinateReferenceSystem(int(service_wkid_string)) # Service CRS
-    tform = qgis_QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
-
-    minPoint = tform.transform(qgis_QgsPointXY(xmin, ymin))
-    maxPoint = tform.transform(qgis_QgsPointXY(xmax, ymax))
-
-    return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
-
-# define the REST API request by constructing the URL for each selected from the layer_list
-def one_rest_request(url_string, service_wkid_string, treeLocation_to_add_layer, sql_string=None, qgis_QgsProject=QgsProject, qgis_QgsDataSourceUri=QgsDataSourceUri,
-                     qgis_QgsVectorLayer=QgsVectorLayer):
-    """
-    Sends a REST request for one service URL and adds the resulting layer to the map canvas.
-
-    Parameters:
-        url_string (str): The REST URL string.
-        service_wkid_string (str): The WKID (well-known ID) of the service's coordinate reference system (CRS) as a string.
-        treeLocation_to_add_layer: The location in the layer tree where the layer should be added.
-        sql_string (str, optional): The SQL query string to filter data. Default is None.
-        qgis_QgsProject (QgsProject): The QgsProject object. Default is QgsProject.
-        qgis_QgsDataSourceUri (QgsDataSourceUri): The QgsDataSourceUri object. Default is QgsDataSourceUri.
-        qgis_QgsVectorLayer (QgsVectorLayer): The QgsVectorLayer object. Default is QgsVectorLayer.
-
-    Returns:
-        None
-    """
-
-    projInstance = qgis_QgsProject.instance()
-    uri = qgis_QgsDataSourceUri()
-
-    #TODO does the service wkid need to be an int?
-    #TODO what if the service wkid is not EPSG?
-    uri.setParam('crs', f"EPSG:{service_wkid_string}")
-    uri.setParam('bbox', bbox_for_service(service_wkid_string))
-    uri.setParam('url', f'{url_string}')
-    # TODO some sort of try/catch for this since it can easily cause a failure...
-    # TODO ask user for the name? Or get from the url.json?
-    if sql_string:
-        uri.setSql(f'{sql_string}')
-    layer = qgis_QgsVectorLayer(uri.uri(), 'Layer from service' , 'arcgisfeatureserver')
-
-    if layer.isValid():
-        # set_layer_style(layer)
-        projInstance.addMapLayer(layer, False)
-        treeLocation_to_add_layer.addLayer(layer)
-
-    else:
-        print(f"Invalid layer: failed to add layer")
-
-[print("Loading layer...")]
+### FUNCTIONS ############################################################################################
 
 # define the styles of the selected layers, from the style.py dictionary
 def set_layer_style(layer):
@@ -145,6 +62,65 @@ def set_layer_style(layer):
             layer.setRenderer(renderer)
             layer.setOpacity(opacity)
             layer.triggerRepaint()
+
+
+
+# define the bounding box to query
+def canvas_bbox_for_service(crs_string):
+    """
+    This is a function that returns a bounding box in the CRS of the service, to be passed to the REST call.
+    :param crs_string: A string representing the ESRI REST Service CRS.
+    """
+
+    ext = mapCanvas.extent()
+
+    # Get the map extent. Remember to zoom in to area of interest before running script
+    xmin = ext.xMinimum()
+    xmax = ext.xMaximum()
+    ymin = ext.yMinimum()
+    ymax = ext.yMaximum()
+
+    # Setup the transform
+    # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
+    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
+    destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
+    tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
+
+    minPoint = tform.transform(QgsPointXY(xmin, ymin))
+    maxPoint = tform.transform(QgsPointXY(xmax, ymax))
+
+    return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
+
+# define the bounding box to query
+def layer_bbox_for_service(crs_string):
+    """
+    This is a function that returns a bounding box in the CRS of the service, to be passed to the REST call.
+    :param crs_string: A string representing the ESRI REST Service CRS.
+    """
+
+   # Get the active layer's extent
+    active_layer = iface.activeLayer()
+    if not active_layer:
+        raise ValueError("No active layer found.")
+    
+    ext = active_layer.extent()  # Get the extent of the active layer
+
+    # Get the map extent. Remember to zoom in to area of interest before running script
+    xmin = ext.xMinimum()
+    xmax = ext.xMaximum()
+    ymin = ext.yMinimum()
+    ymax = ext.yMaximum()
+
+    # Setup the transform
+    # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
+    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
+    destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
+    tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
+
+    minPoint = tform.transform(QgsPointXY(xmin, ymin))
+    maxPoint = tform.transform(QgsPointXY(xmax, ymax))
+
+    return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
 
 
 
@@ -206,14 +182,26 @@ class WarningDialog(QDialog):
 
 # TODO it would be great to discuss how this works exactly and how challenging it would be to implement select multiple functionality
 
+
 class LayerSelectionDialog(QDialog):
     def __init__(self, layers):
         super().__init__()
 
         self.setWindowTitle("Layer Selection")
         layout = QVBoxLayout()
+
+        # Radio buttons to choose between bbox functions
+        self.radio_layer_bbox = QRadioButton("Use selected layer for bbox")
+        self.radio_canvas_bbox = QRadioButton("Use canvas for bbox")
         
-        # Make it scrollable
+        # Set default selection
+        self.radio_canvas_bbox.setChecked(True)
+
+        # Add radio buttons to the layout
+        layout.addWidget(self.radio_layer_bbox)
+        layout.addWidget(self.radio_canvas_bbox)
+
+        # Make it scrollable for layers
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
 
@@ -233,6 +221,7 @@ class LayerSelectionDialog(QDialog):
         scroll_area.setWidget(widget)
         layout.addWidget(scroll_area)
 
+        # Add the OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
@@ -246,6 +235,14 @@ class LayerSelectionDialog(QDialog):
             if checkbox.isChecked():
                 selected.append(layer)
         return selected
+
+    def get_bbox_function(self):
+        # Return the selected bounding box function
+        if self.radio_layer_bbox.isChecked():
+            return "layer_bbox_for_service"
+        else:
+            return "canvas_bbox_for_service"
+
 ## END of CLASSES #####################################################################################
 
 # open the url request
@@ -258,8 +255,10 @@ with urllib.request.urlopen(json_lio1) as url:
 # get the service crs from the response
 service_crs = str(data['spatialReference']['latestWkid'])
 
+
+
 # pass the service crs into the bbox function created above
-str_bbox = bbox_for_service(service_crs)
+str_bbox = layer_bbox_for_service(service_crs)
 
 # make the warning dialog string and pass it to the class above
 warn_str = 'Please make sure you are zoomed in sufficiently!\nOtherwise QGIS may crash...'
@@ -275,13 +274,24 @@ if warn_dialog.exec_() == QDialog.Accepted:
     print("Zoom warning accepted. Selecting layers of interest")
     if dialog.exec_() == QDialog.Accepted:
         selected_layers = dialog.selected_layers()
+        
+        if dialog.get_bbox_function() == "layer_bbox_for_service":
+            str_bbox = layer_bbox_for_service(service_crs)
+        elif dialog.get_bbox_function() == "canvas_bbox_for_service":
+            str_bbox = canvas_bbox_for_service(service_crs)
+
         # pass the selected layers into the rest request - i.e query for each of the selected layers
+
         rest_request(selected_layers)
+
         print("Script complete")
     else:
         print("User clicked Cancel. Stopping script.")
 else:
     print("User clicked Cancel. Stopping script.")
+
+
+    
 
 
 
