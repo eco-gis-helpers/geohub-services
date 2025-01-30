@@ -110,6 +110,8 @@ def layer_bbox_for_service(crs_string):
    # Get the active layer
     active_layer = iface.activeLayer()
 
+    print(active_layer.type())
+
     # if no active layer, raise a value error and notify the user
     # exiting out of the script with return is really slow for some reason, so I raise a ValueError
     if not active_layer:
@@ -117,6 +119,12 @@ def layer_bbox_for_service(crs_string):
         iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
         raise ValueError("No layer selected!")
         # return
+
+    # active layer must also be a polygon
+    elif QgsWkbTypes.displayString(active_layer.wkbType()) != "Polygon":
+        print("The selected layer needs to be a polygon!")
+        iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
+        raise ValueError("Selected layer is not a polygon!")
 
     # otherwise get the extent of the active layer
     else:
