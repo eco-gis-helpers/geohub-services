@@ -1,5 +1,5 @@
 layer_styles = {
-#'Building As Symbol': {'color': 'black', 'renderer': 'point', 'opacity': 0.5},
+'Building as Symbol': {'color': 'black', 'renderer': 'point', 'opacity': 0.5},
 'Spot Height': {'color': 'orange', 'renderer': 'point', 'opacity': 0.5},
 'Bathymetry Point': {'color': 'yellow', 'renderer': 'point', 'opacity': 0.5},
 'OHN Hydrographic Point': {'color': 'teal', 'renderer': 'point', 'opacity': 1},

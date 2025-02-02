@@ -6,7 +6,7 @@
 # - Define what the parts of each sub list are. 
 
 lio_list = [
-    ['33', 'Building As Symbol', '01'],
+    ['33', 'Building as Symbol', '01'],
     ['28', 'Spot Height', '01'],
     ['27', 'Bathymetry Point', '01'],
     ['6', 'OHN Hydrographic Point', '01'],
