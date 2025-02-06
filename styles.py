@@ -100,5 +100,7 @@ layer_styles = {
 # 'Forest Misc Damage Event': {'color': 'red', 'renderer': 'unknown'},
 # 'Forest Resource Inventory Status': {'color': 'red', 'renderer': 'unknown'},
 # 'Provincially Tracked Species 1km Grid': {'color': 'red', 'renderer': 'unknown'},
-'Wooded Area': {'color': 'green', 'renderer': 'fill', 'opacity': 0.4}
+'Wooded Area': {'color': 'green', 'renderer': 'fill', 'opacity': 0.4},
+'Ontario Trail Network (OTN) Segment': {'color': 'green', 'renderer': 'line', 'opacity': 0.4},
+'Ontario Trail Network (OTN) Access Point': {'color': 'green', 'renderer': 'point', 'opacity': 0.4},
 }
