@@ -353,27 +353,23 @@ if warn_dialog.exec_() == QDialog.Accepted:
 
             # if no active layer, raise a value error and notify the user
             # exiting out of the script with 'return' is really slow for some reason, so I raise a ValueError instead
-
             if not active_layer:
                 print("No layer selected!")
                 iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
                 raise ValueError("No layer selected!")
                 # return
 
-            # Check if the active layer is a raster
+            # If the active layer is a raster, throw an error
             elif active_layer.type() == QgsMapLayer.RasterLayer:
                 print("The selected layer is a raster!")
                 iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
                 raise ValueError("Selected layer is a raster!")
 
-            # If the active layer is a multi-polygon
-            elif QgsWkbTypes.displayString(active_layer.wkbType()) == "MultiPolygon":
+            # If the active layer is a multi-polygon or polygon, keep going!
+            elif QgsWkbTypes.displayString(active_layer.wkbType()) in ["MultiPolygon", "Polygon"]:
                 pass
 
-            # If the active layer is not a normal Polygon
-            elif QgsWkbTypes.displayString(active_layer.wkbType()) == "Polygon":
-                pass
-            
+            # If the active layer is not a Polygon or MultiPolygon, throw an error
             else:
                 print("The selected layer needs to be a polygon!")
                 iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
