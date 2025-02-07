@@ -371,14 +371,13 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 pass
 
             # If the active layer is not a normal Polygon
-            elif QgsWkbTypes.displayString(active_layer.wkbType()) != "Polygon":
+            elif QgsWkbTypes.displayString(active_layer.wkbType()) == "Polygon":
+                pass
+            
+            else:
                 print("The selected layer needs to be a polygon!")
                 iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
                 raise ValueError("Selected layer is not a polygon!")
-            
-            else:
-                print("The selected layer is not yet supported!")
-                iface.messageBar().pushMessage("Error", "Selected layer is not yet supported!", level=Qgis.Critical)
 
             # get the geometries of each feature in the active layer
             for feature in active_layer.getFeatures():
