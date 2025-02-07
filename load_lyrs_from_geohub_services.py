@@ -366,7 +366,33 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
                 raise ValueError("Selected layer is a raster!")
 
-            # Active layer must be a polygon
+            # If the active layer is a multi-polygon, need to split it out into single parts
+            # basically need to temporarily making it a single part polygon for the bboxs to work
+            elif QgsWkbTypes.displayString(active_layer.wkbType()) == "MultiPolygon":
+
+                # Create a new temporary layer for single polygons
+                single_parts_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), active_layer.name() + "_singleparts", "memory")
+                provider = single_parts_layer.dataProvider()
+
+                # Convert MultiPolygons into single polygons. They each need their own bbox to query the service with
+                for feature in active_layer.getFeatures():
+                    geom = feature.geometry()
+                    if geom and geom.isMultipart():
+                        polygons = geom.asGeometryCollection()
+                        for poly in polygons:
+                            new_feature = QgsFeature()
+                            new_feature.setGeometry(poly)
+                            provider.addFeature(new_feature)
+                    else:
+                        provider.addFeature(feature)
+
+                # Add the temporary single parts layer to the project
+                QgsProject.instance().addMapLayer(single_parts_layer)
+
+                # Set the temp single part layer as the active layer for now
+                iface.setActiveLayer(single_parts_layer)
+
+            # If the active layer is not a normal Polygon, throw an error
             elif QgsWkbTypes.displayString(active_layer.wkbType()) != "Polygon":
                 print("The selected layer needs to be a polygon!")
                 iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
@@ -405,9 +431,13 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 # call the clipping function
                 clipping(loaded_layer_list, overlay_source, layer_id_list)
 
-            # Remove all temporary layers after processing
+            # Remove the temporary layers after processing
             for temp_layer in temp_layers:
                 QgsProject.instance().removeMapLayer(temp_layer)
+            
+            # Remove the temporary single-parts layer after processing
+            QgsProject.instance().removeMapLayer(single_parts_layer)
+            iface.setActiveLayer(active_layer)
 
         # otherwise the user selected the canvas bbox for query
         elif dialog.get_bbox_function() == "canvas_bbox_for_service":
