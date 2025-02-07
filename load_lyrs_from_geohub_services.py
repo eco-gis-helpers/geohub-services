@@ -1,21 +1,24 @@
 import urllib.request
 import json
+import time
 from styles import layer_styles
 from lio_list import lio_list
 
+# Start Timer
+start_time = time.time() 
 print("Starting script...")
 
 # set the project crs to 4326 for consistent queries
 #TODO check with Fraser if this is okay?
-crs = QgsCoordinateReferenceSystem("EPSG:4326")
-QgsProject.instance().setCrs(crs)
+# crs = QgsCoordinateReferenceSystem("EPSG:4326")
+# QgsProject.instance().setCrs(crs)
 
 ### Constants
 mapCanvas = iface.mapCanvas()
 parent = iface.mainWindow()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-# ext = mapCanvas.extent() # the extent will change based on if the user selects "canvas" or "layer"
+ext = mapCanvas.extent() # the extent will change based on if the user selects "canvas" or "layer"
 jsonSlug = '?f=pjson'
 url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
 json_lio1 = url_lio+jsonSlug
@@ -81,7 +84,7 @@ def canvas_bbox_for_service(crs_string):
     :param crs_string: A string representing the ESRI REST Service CRS.
     """
 
-    ext = mapCanvas.extent()
+    # ext = mapCanvas.extent()
 
     # Get the map extent. Remember to zoom in to area of interest before running script
     xmin = ext.xMinimum()
@@ -110,7 +113,7 @@ def layer_bbox_for_service(crs_string):
     :param crs_string: A string representing the ESRI REST Service CRS.
     """
 
-    ext = active_layer.extent()  # Get the extent of the active layer
+    # ext = active_layer.extent()  # Get the extent of the active layer
 
     # here is where we'd have to change to use the geometry instead of the extent?
     # instead I went the clipping route
@@ -423,3 +426,9 @@ if warn_dialog.exec_() == QDialog.Accepted:
         print("User clicked Cancel. Stopping script.")
 else:
     print("User clicked Cancel. Stopping script.")
+
+
+# End Timer
+end_time = time.time() 
+elapsed_time = end_time - start_time
+print(f"Script execution time: {elapsed_time:.2f} seconds")
