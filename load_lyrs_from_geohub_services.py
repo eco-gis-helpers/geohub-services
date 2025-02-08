@@ -210,6 +210,14 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
     :param overlay_layer_list: A list of temporary overlay layers (one for each feature from the active layer)
     :param layer_id_list: A list layer ids (one for each feature in the active layer)
     """
+
+    # make sure the overlay_layer_lists and layer_id_lists are the same length as the loaded_layer_list
+    # this ensures that each of the features has an overlay to be clipped and named to
+    # the loaded_layer_list will have [selected_layers x number of features] items.
+    # whereas the overlay_list will only have [number of features] items, so we use the modulo operator to match their lengths
+    overlay_layer_list = [overlay_layer_list[i % len(overlay_layer_list)] for i in range(len(loaded_layer_list))]
+    layer_id_list = [layer_id_list[i % len(layer_id_list)] for i in range(len(loaded_layer_list))]
+
     for loaded_layer, overlay_layer, layer_id in zip(loaded_layer_list, overlay_layer_list, layer_id_list):
 
         # Clipping each of the selected layers to each feature in the active layer
@@ -228,14 +236,14 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
         # style the layers
         set_layer_style(layer_clip_result)
 
-        # renaming again so you know what layer is associated to which feature
+        # # renaming again so you know what layer is associated to which feature
         layer_name = f"{loaded_layer.name()}_ID_{layer_id}"
         layer_clip.setName(layer_name)
 
         if layer_clip_result.isValid() and layer_clip_result.featureCount() > 0:
             # count the resulting features in each of the polygon features
-            feature_count = len([f for f in layer_clip.getFeatures()])
-            print(f"{feature_count} feature(s) within {layer_clip_result.name()} were added to the map.")
+            feature_count = layer_clip.featureCount()
+            print(f"{feature_count} feature(s) within {layer_name} were added to the map.")
             pyqgis_group.addLayer(layer_clip_result)
 
 ### END of FUNCTIONS #######################################################################################
@@ -352,7 +360,6 @@ if warn_dialog.exec_() == QDialog.Accepted:
         if dialog.get_bbox_function() == "layer_bbox_for_service":
             print("Querying by Active Layer")
 
-            layer_id_list = []
 
             # if no active layer, raise a value error and notify the user
             # exiting out of the script with 'return' is really slow for some reason
@@ -382,14 +389,14 @@ if warn_dialog.exec_() == QDialog.Accepted:
             # get a list of the bboxes for each of these geometries
             bbox_list = layer_bbox_for_service(service_crs)
 
+            layer_id_list = []
             overlay_layer_list = []
 
             for feature in active_layer.getFeatures():
                 layer_id = feature.id()
                 layer_id_list.append(layer_id)
                 geometry = feature.geometry()
-                # query the API using the bboxes from each geometry
-                loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
+
 
                 # make temp layers of each feature in the active layer for the clipping function
                 temp_layer_name = f"temp_clip_{layer_id}"
@@ -410,6 +417,12 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
 
                 overlay_layer_list.append(overlay_source)
+
+
+                 # print("Loaded Layer List: ", loaded_layer_list)
+
+            # query the API using the bboxes from each geometry
+            loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
                 
             # call the clipping function
             clipping(loaded_layer_list, overlay_layer_list, layer_id_list)
