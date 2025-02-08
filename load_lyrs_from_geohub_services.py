@@ -152,7 +152,7 @@ def rest_request(layer_list):
             pyqgis_group.addLayer(layer)
 
             # added a count of how many features are added to the map
-            feature_count = len([f for f in layer.getFeatures()])
+            feature_count = layer.featureCount()
             print(f"{feature_count} feature(s) within {layer.name()} were added to the map.")
 
         elif layer.isValid() and layer.featureCount() == 0:
@@ -397,7 +397,6 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 layer_id_list.append(layer_id)
                 geometry = feature.geometry()
 
-
                 # make temp layers of each feature in the active layer for the clipping function
                 temp_layer_name = f"temp_clip_{layer_id}"
                 # load the temp layers in memory
@@ -417,9 +416,6 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
 
                 overlay_layer_list.append(overlay_source)
-
-
-                 # print("Loaded Layer List: ", loaded_layer_list)
 
             # query the API using the bboxes from each geometry
             loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
