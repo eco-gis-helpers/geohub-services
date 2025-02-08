@@ -198,43 +198,19 @@ def layer_rest_request(bbox_list, layer_list):
     # [print("Loading", x[1], "layer...") for x in layer_list]
     return loaded_layer_list
 
-def pre_clipping():
-    for feature in active_layer.getFeatures():
-        layer_id = feature.id()
-        layer_id_list.append(layer_id)
-        geometry = feature.geometry()
-        # query the API using the bboxes from each geometry
-        loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
-
-        # make temp layers of each feature in the active layer for the clipping function
-        temp_layer_name = f"temp_clip_{layer_id}"
-        # load the temp layers in memory
-        temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
-        temp_layer_provider = temp_layer.dataProvider()
-
-        # # Add the feature geometry to the temporary layer
-        temp_feature = QgsFeature()
-        temp_feature.setGeometry(geometry)
-        temp_layer_provider.addFeature(temp_feature)
-        temp_layer.updateExtents()
-
-        # Add the temporary layer to the project (for visibility in processing)
-        QgsProject.instance().addMapLayer(temp_layer)
-        temp_layers.append(temp_layer)
-        # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
-        overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
-        
-        # call the clipping function
-        clipping(loaded_layer_list, overlay_source, layer_id_list)
-
-    # Remove the temporary layers after processing
-    for temp_layer in temp_layers:
-        QgsProject.instance().removeMapLayer(temp_layer)
-
 # function to clip the resulting layer(s) (from the layer_bbox query function) with the active polygon(s) layer
 # it takes a list of the loaded layers (from layer_bbox query), the active layer is the overlay layer and a list of their names (layer_id_list)
-def clipping(loaded_layer_list, overlay_layer, layer_id_list):
-    for loaded_layer in loaded_layer_list:
+def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
+    """
+    Clips each loaded layer from the bbox_query function against the temporary overlay_layers
+    Renames the clipped layers based on their feature id
+    and counts the resulting features and adds the clipped layers to the pyqgis group
+    
+    :param loaded_layer_list: A list of QgsVector layers from the layer_rest_request function
+    :param overlay_layer_list: A list of temporary overlay layers (one for each feature from the active layer)
+    :param layer_id_list: A list layer ids (one for each feature in the active layer)
+    """
+    for loaded_layer, overlay_layer, layer_id in zip(loaded_layer_list, overlay_layer_list, layer_id_list):
 
         # Clipping each of the selected layers to each feature in the active layer
         layer_clip = processing.run('qgis:clip',
@@ -253,9 +229,8 @@ def clipping(loaded_layer_list, overlay_layer, layer_id_list):
         set_layer_style(layer_clip_result)
 
         # renaming again so you know what layer is associated to which feature
-        for layer_id in layer_id_list:
-            layer_name = f"{loaded_layer.name()}_ID_{layer_id}"
-            layer_clip.setName(layer_name)
+        layer_name = f"{loaded_layer.name()}_ID_{layer_id}"
+        layer_clip.setName(layer_name)
 
         if layer_clip_result.isValid() and layer_clip_result.featureCount() > 0:
             # count the resulting features in each of the polygon features
@@ -407,7 +382,41 @@ if warn_dialog.exec_() == QDialog.Accepted:
             # get a list of the bboxes for each of these geometries
             bbox_list = layer_bbox_for_service(service_crs)
 
-            pre_clipping()
+            overlay_layer_list = []
+
+            for feature in active_layer.getFeatures():
+                layer_id = feature.id()
+                layer_id_list.append(layer_id)
+                geometry = feature.geometry()
+                # query the API using the bboxes from each geometry
+                loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
+
+                # make temp layers of each feature in the active layer for the clipping function
+                temp_layer_name = f"temp_clip_{layer_id}"
+                # load the temp layers in memory
+                temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
+                temp_layer_provider = temp_layer.dataProvider()
+
+                # # Add the feature geometry to the temporary layer
+                temp_feature = QgsFeature()
+                temp_feature.setGeometry(geometry)
+                temp_layer_provider.addFeature(temp_feature)
+                temp_layer.updateExtents()
+
+                # Add the temporary layer to the project (for visibility in processing)
+                QgsProject.instance().addMapLayer(temp_layer)
+                temp_layers.append(temp_layer)
+                # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
+                overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
+
+                overlay_layer_list.append(overlay_source)
+                
+            # call the clipping function
+            clipping(loaded_layer_list, overlay_layer_list, layer_id_list)
+
+            # Remove the temporary layers after processing
+            for temp_layer in temp_layers:
+                QgsProject.instance().removeMapLayer(temp_layer)
 
         # otherwise the user selected the canvas bbox for query
         elif dialog.get_bbox_function() == "canvas_bbox_for_service":
