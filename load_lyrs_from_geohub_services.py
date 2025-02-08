@@ -436,8 +436,10 @@ if warn_dialog.exec_() == QDialog.Accepted:
 
         print("Script complete")
     else:
+        treeRoot.removeChildNode(pyqgis_group)
         print("User clicked Cancel. Stopping script.")
 else:
+    treeRoot.removeChildNode(pyqgis_group)
     print("User clicked Cancel. Stopping script.")
 
 # End Timer
