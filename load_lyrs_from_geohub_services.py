@@ -167,45 +167,51 @@ def rest_request(layer_list):
 # it takes a list of bboxs from the features geometries
 def layer_rest_request(bbox_list, layer_list):
     """
-    Sends REST requests for each layer in the given list.
-    :param bbox_list: A list of bboxes from the returned from the layer_for_bbox_service function
+    Sends REST requests for each layer in the given list and flag invalid geometries to the user
+    :param bbox_list: A list of bboxes returned from the layer_for_bbox_service function.
     :param layer_list: A list of layer ids and names.
+    :returns: the list of layers to be clipped and loaded in.
     """
-    # print("Layer List: ", layer_list)
     loaded_layer_list = []
     for l in layer_list:
-        # print("Layer in Layer List: ", l)
         for str_bbox in bbox_list:
+            # Prepare bbox for the request
             str_bbox = f"{str_bbox.xMinimum()},{str_bbox.yMinimum()},{str_bbox.xMaximum()},{str_bbox.yMaximum()}"
+            
+            # Prepare URI for layer
             uri = QgsDataSourceUri()
             uri.setParam('crs', f"EPSG:{service_crs}")
             uri.setParam('bbox', str_bbox)
             uri.setParam('url', f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open{l[2]}/MapServer/{l[0]}")
-            layer = QgsVectorLayer(uri.uri(), f"{l[1]}" , 'arcgisfeatureserver')
-            # print(layer)
+            
+            # Initialize layer from URI
+            layer = QgsVectorLayer(uri.uri(), f"{l[1]}", 'arcgisfeatureserver')
 
             if layer.isValid() and layer.featureCount() > 0:
+                # Check for invalid geometries
+                for feature in layer.getFeatures():
+                    geometry = feature.geometry()
+                    if not geometry.isGeosValid():
+                        print(f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.")
                 loaded_layer_list.append(layer)
-                pass
-
             elif layer.isValid() and layer.featureCount() == 0:
                 print(f"No features exist: skipped layer {l}")
-
+                loaded_layer_list.append(layer)
             else:
                 print(f"Invalid layer: failed to add layer {l}")
+                loaded_layer_list.append(layer)
 
-
-    # [print("Loading", x[1], "layer...") for x in layer_list]
     return loaded_layer_list
+
+
 
 # function to clip the resulting layer(s) (from the layer_bbox query function) with the active polygon(s) layer
 # it takes a list of the loaded layers (from layer_bbox query), the active layer is the overlay layer and a list of their names (layer_id_list)
 def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
-    """
-    Clips each loaded layer from the bbox_query function against the temporary overlay_layers
-    Renames the clipped layers based on their feature id
-    and counts the resulting features and adds the clipped layers to the pyqgis group
     
+    """
+    Fixes invalid geometries and clips each loaded layer from the bbox_query function against the temporary overlay_layers
+    Renames the clipped layers based on their feature id, counts the resulting features and adds the clipped layers to the pyqgis group
     :param loaded_layer_list: A list of QgsVector layers from the layer_rest_request function
     :param overlay_layer_list: A list of temporary overlay layers (one for each feature from the active layer)
     :param layer_id_list: A list layer ids (one for each feature in the active layer)
@@ -219,12 +225,17 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
     layer_id_list = [layer_id_list[i % len(layer_id_list)] for i in range(len(loaded_layer_list))]
 
     for loaded_layer, overlay_layer, layer_id in zip(loaded_layer_list, overlay_layer_list, layer_id_list):
+        
+        # Fix invalid geometries before clipping
+        fixed_layer = processing.run('qgis:fixgeometries', 
+            {'INPUT': loaded_layer, 'OUTPUT': 'memory:'},
+        )["OUTPUT"]
 
         # Clipping each of the selected layers to each feature in the active layer
         layer_clip = processing.run('qgis:clip',
-            {'INPUT': loaded_layer,
+            {'INPUT': fixed_layer,
             'OVERLAY': overlay_layer,
-            'OUTPUT': "memory:"}
+            'OUTPUT': "memory:"},
         )["OUTPUT"]
 
         layer_clip_result = QgsProject.instance().addMapLayer(layer_clip, False)
