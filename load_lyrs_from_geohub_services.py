@@ -8,17 +8,12 @@ from lio_list import lio_list
 start_time = time.time() 
 print("Starting script...")
 
-# set the project crs to 4326 for consistent queries
-#TODO check with Fraser if this is okay?
-# crs = QgsCoordinateReferenceSystem("EPSG:4326")
-# QgsProject.instance().setCrs(crs)
-
 ### Constants
 mapCanvas = iface.mapCanvas()
 parent = iface.mainWindow()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-ext = mapCanvas.extent() # the extent will change based on if the user selects "canvas" or "layer"
+# ext = mapCanvas.extent() # the extent will change based on if the user selects "canvas" or "layer"
 jsonSlug = '?f=pjson'
 url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
 json_lio1 = url_lio+jsonSlug
@@ -42,7 +37,6 @@ pyqgis_group = treeRoot.insertGroup(0, group_name)
 # define the styles of the selected layers, from the style.py dictionary
 def set_layer_style(layer):
     layer_name = layer.name()
-
 
     # Check if the layer name exists in the styles dictionary
     if layer.name() in layer_styles:
@@ -84,7 +78,7 @@ def canvas_bbox_for_service(crs_string):
     :param crs_string: A string representing the ESRI REST Service CRS.
     """
 
-    # ext = mapCanvas.extent()
+    ext = mapCanvas.extent()
 
     # Get the map extent. Remember to zoom in to area of interest before running script
     xmin = ext.xMinimum()
@@ -95,37 +89,6 @@ def canvas_bbox_for_service(crs_string):
     # Setup the transform
     # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
     sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
-    # print(sourceCrs)
-    destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
-    # print(destCrs)
-    tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
-
-    minPoint = tform.transform(QgsPointXY(xmin, ymin))
-    maxPoint = tform.transform(QgsPointXY(xmax, ymax))
-
-    return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
-
-# define the bounding box from an active layer to query
-# having issues with this when the project projection is in UTM and not WGS. Hence is set the project to EPSG 4326
-def layer_bbox_for_service(crs_string):
-    """
-    This is a function that returns a bounding box in the CRS of the service, to be passed to the REST call.
-    :param crs_string: A string representing the ESRI REST Service CRS.
-    """
-
-    # ext = active_layer.extent()  # Get the extent of the active layer
-
-    # here is where we'd have to change to use the geometry instead of the extent?
-    # instead I went the clipping route
-    # Get the active layer extent
-    xmin = ext.xMinimum()
-    xmax = ext.xMaximum()
-    ymin = ext.yMinimum()
-    ymax = ext.yMaximum()
-
-    # Setup the transform as per usual
-    # sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.strip('EPSG:'))) #  Project CRS (initial method)
-    sourceCrs = QgsCoordinateReferenceSystem(int(projCRS.split(':')[1])) #  Project CRS
     destCrs = QgsCoordinateReferenceSystem(int(crs_string)) # Service CRS
     tform = QgsCoordinateTransform(sourceCrs, destCrs, projInstance)
 
@@ -134,6 +97,37 @@ def layer_bbox_for_service(crs_string):
 
     return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
 
+def layer_bbox_for_service(service_crs):
+    """
+    Returns a list of bounding boxes from the active layer's feature geometries,
+    ensuring they are in EPSG:4269
+    params: crs_string: A string representing the ESRI REST Service CRS
+    """
+    bbox_list = []
+
+    destCrs = QgsCoordinateReferenceSystem(int(service_crs))
+    # Get the CRS of the active layer
+    activeCrs = active_layer.crs()
+
+    # if the active layers crs doesnt match the ESRI REST Service CRS, make a transformation
+    if activeCrs.authid() != int(service_crs):
+        tform = QgsCoordinateTransform(activeCrs, destCrs, QgsProject.instance())
+
+    # reproject each feature
+    for feature in active_layer.getFeatures():
+        geometry = feature.geometry()
+
+        # Reproject if necessary
+        if tform:
+            geometry.transform(tform)
+
+        # Get bounding box in ESRI REST Service CRS
+        bbox = geometry.boundingBox()
+        # print(bbox)
+        bbox_list.append(bbox)
+
+    return bbox_list
+        
 # define the REST API request by constructing the URL for each selected from the layer_list
 def rest_request(layer_list):
     """
@@ -169,41 +163,73 @@ def rest_request(layer_list):
 
     [print("Loading", x[1], "layer...") for x in layer_list]
 
-# seperate rest_request function for when the user queries by an active layer
-# could maybe combine this with the generic rest_request function by passing in a geometry?
-# something like - if there is a geometry, the active layer is being queried. if no geometry, the canvas is being queried
-def layer_rest_request(layer_list):
+# function for when the user queries by an active layer
+# it takes a list of bboxs from the features geometries
+def layer_rest_request(bbox_list, layer_list):
     """
     Sends REST requests for each layer in the given list.
+    :param bbox_list: A list of bboxes from the returned from the layer_for_bbox_service function
     :param layer_list: A list of layer ids and names.
     """
-
+    # print("Layer List: ", layer_list)
     loaded_layer_list = []
     for l in layer_list:
+        # print("Layer in Layer List: ", l)
+        for str_bbox in bbox_list:
+            str_bbox = f"{str_bbox.xMinimum()},{str_bbox.yMinimum()},{str_bbox.xMaximum()},{str_bbox.yMaximum()}"
+            uri = QgsDataSourceUri()
+            uri.setParam('crs', f"EPSG:{service_crs}")
+            uri.setParam('bbox', str_bbox)
+            uri.setParam('url', f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open{l[2]}/MapServer/{l[0]}")
+            layer = QgsVectorLayer(uri.uri(), f"{l[1]}" , 'arcgisfeatureserver')
+            # print(layer)
 
-        #Use this if you want to filter by more than bounding box
-        #https://gis.stackexchange.com/questions/456167/pyqgis-add-arcgis-feature-service-layer-to-qgis-including-a-query
-        uri = QgsDataSourceUri()
-        # TODO 'EPSG' handcoded here makes this function less generalizable than it could be
-        uri.setParam('crs', f"EPSG:{service_crs}")
-        uri.setParam('bbox', str_bbox)
-        uri.setParam('url', f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open{l[2]}/MapServer/{l[0]}")
-        layer = QgsVectorLayer(uri.uri(), f"{l[1]}" , 'arcgisfeatureserver')
+            if layer.isValid() and layer.featureCount() > 0:
+                loaded_layer_list.append(layer)
+                pass
 
-        if layer.isValid() and layer.featureCount() > 0:
-            # print(f"layer {l[1]} is valid")
-            pass
+            elif layer.isValid() and layer.featureCount() == 0:
+                print(f"No features exist: skipped layer {l}")
 
-        elif layer.isValid() and layer.featureCount() == 0:
-            print(f"No features exist: skipped layer {l}")
+            else:
+                print(f"Invalid layer: failed to add layer {l}")
 
-        else:
-            print(f"Invalid layer: failed to add layer {l}")
 
-        loaded_layer_list.append(layer)
-    [print("Loading", x[1], "layer...") for x in layer_list]
+    # [print("Loading", x[1], "layer...") for x in layer_list]
     return loaded_layer_list
 
+def pre_clipping():
+    for feature in active_layer.getFeatures():
+        layer_id = feature.id()
+        layer_id_list.append(layer_id)
+        geometry = feature.geometry()
+        # query the API using the bboxes from each geometry
+        loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
+
+        # make temp layers of each feature in the active layer for the clipping function
+        temp_layer_name = f"temp_clip_{layer_id}"
+        # load the temp layers in memory
+        temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
+        temp_layer_provider = temp_layer.dataProvider()
+
+        # # Add the feature geometry to the temporary layer
+        temp_feature = QgsFeature()
+        temp_feature.setGeometry(geometry)
+        temp_layer_provider.addFeature(temp_feature)
+        temp_layer.updateExtents()
+
+        # Add the temporary layer to the project (for visibility in processing)
+        QgsProject.instance().addMapLayer(temp_layer)
+        temp_layers.append(temp_layer)
+        # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
+        overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
+        
+        # call the clipping function
+        clipping(loaded_layer_list, overlay_source, layer_id_list)
+
+    # Remove the temporary layers after processing
+    for temp_layer in temp_layers:
+        QgsProject.instance().removeMapLayer(temp_layer)
 
 # function to clip the resulting layer(s) (from the layer_bbox query function) with the active polygon(s) layer
 # it takes a list of the loaded layers (from layer_bbox query), the active layer is the overlay layer and a list of their names (layer_id_list)
@@ -236,8 +262,6 @@ def clipping(loaded_layer_list, overlay_layer, layer_id_list):
             feature_count = len([f for f in layer_clip.getFeatures()])
             print(f"{feature_count} feature(s) within {layer_clip_result.name()} were added to the map.")
             pyqgis_group.addLayer(layer_clip_result)
-        else:
-            print(f"no feature(s) found in {layer_clip_result.name()}")
 
 ### END of FUNCTIONS #######################################################################################
 
@@ -331,6 +355,7 @@ with urllib.request.urlopen(json_lio1) as url:
 # construct the url request for each selected crs
 
 service_crs = str(data['spatialReference']['latestWkid'])
+# print("Service CRS: ", service_crs)
 
 # make the warning dialog string and pass it to the class above
 warn_str = 'Please make sure you are zoomed in sufficiently!\nOtherwise QGIS may crash...'
@@ -350,12 +375,13 @@ if warn_dialog.exec_() == QDialog.Accepted:
         # make a list to hold the temporary layers
         temp_layers = []
         if dialog.get_bbox_function() == "layer_bbox_for_service":
-            # print("Clipping to layers. This can take some time. Please be patient.")
+            print("Querying by Active Layer")
 
             layer_id_list = []
 
             # if no active layer, raise a value error and notify the user
-            # exiting out of the script with 'return' is really slow for some reason, so I raise a ValueError instead
+            # exiting out of the script with 'return' is really slow for some reason
+            # so raise a ValueError instead
             if not active_layer:
                 print("No layer selected!")
                 iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
@@ -377,47 +403,16 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 print("The selected layer needs to be a polygon!")
                 iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
                 raise ValueError("Selected layer is not a polygon!")
-
-            # get the geometries of each feature in the active layer
-            for feature in active_layer.getFeatures():
-                layer_id = feature.id()
-                layer_id_list.append(layer_id)
-                geometry = feature.geometry()
                 
-                # get the bbox for each of these geometries
-                str_bbox = layer_bbox_for_service(service_crs)
+            # get a list of the bboxes for each of these geometries
+            bbox_list = layer_bbox_for_service(service_crs)
 
-                # query the API using each geometry
-                loaded_layer_list = layer_rest_request(selected_layers)
-
-                # make temp layers of each feature in the active layer for the clipping function
-                temp_layer_name = f"temp_clip_{layer_id}"
-                # load the temp layers in memory
-                temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
-                temp_layer_provider = temp_layer.dataProvider()
-
-                # # Add the feature geometry to the temporary layer
-                temp_feature = QgsFeature()
-                temp_feature.setGeometry(geometry)
-                temp_layer_provider.addFeature(temp_feature)
-                temp_layer.updateExtents()
-
-                # Add the temporary layer to the project (for visibility in processing)
-                QgsProject.instance().addMapLayer(temp_layer)
-                temp_layers.append(temp_layer)
-                # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
-                overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
-                
-                # call the clipping function
-                clipping(loaded_layer_list, overlay_source, layer_id_list)
-
-            # Remove the temporary layers after processing
-            for temp_layer in temp_layers:
-                QgsProject.instance().removeMapLayer(temp_layer)
+            pre_clipping()
 
         # otherwise the user selected the canvas bbox for query
         elif dialog.get_bbox_function() == "canvas_bbox_for_service":
-            # so we get the bbox and query the api as per usual
+            print("Querying by Canvas")
+            # get the canvas bbox and query the api
             str_bbox = canvas_bbox_for_service(service_crs)
             rest_request(selected_layers)
 
@@ -426,7 +421,6 @@ if warn_dialog.exec_() == QDialog.Accepted:
         print("User clicked Cancel. Stopping script.")
 else:
     print("User clicked Cancel. Stopping script.")
-
 
 # End Timer
 end_time = time.time() 
