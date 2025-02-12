@@ -104,13 +104,15 @@ def layer_bbox_for_service(service_crs):
     params: crs_string: A string representing the ESRI REST Service CRS
     """
     bbox_list = []
+    tform = None
 
     destCrs = QgsCoordinateReferenceSystem(int(service_crs))
     # Get the CRS of the active layer
     activeCrs = active_layer.crs()
 
     # if the active layers crs doesnt match the ESRI REST Service CRS, make a transformation
-    if activeCrs.authid() != int(service_crs):
+    if activeCrs.authid() != f"EPSG:{service_crs}":
+        print("Tranformation needed...")
         tform = QgsCoordinateTransform(activeCrs, destCrs, QgsProject.instance())
 
     # reproject each feature
@@ -173,6 +175,7 @@ def layer_rest_request(bbox_list, layer_list):
     :returns: the list of layers to be clipped and loaded in.
     """
     loaded_layer_list = []
+    invalid_flag = None
     for l in layer_list:
         for str_bbox in bbox_list:
             # Prepare bbox for the request
@@ -192,6 +195,7 @@ def layer_rest_request(bbox_list, layer_list):
                 for feature in layer.getFeatures():
                     geometry = feature.geometry()
                     if not geometry.isGeosValid():
+                        invalid_flag = True
                         print(f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.")
                 loaded_layer_list.append(layer)
             elif layer.isValid() and layer.featureCount() == 0:
@@ -201,13 +205,13 @@ def layer_rest_request(bbox_list, layer_list):
                 print(f"Invalid layer: failed to add layer {l}")
                 loaded_layer_list.append(layer)
 
-    return loaded_layer_list
+    return loaded_layer_list, invalid_flag
 
 
 
 # function to clip the resulting layer(s) (from the layer_bbox query function) with the active polygon(s) layer
 # it takes a list of the loaded layers (from layer_bbox query), the active layer is the overlay layer and a list of their names (layer_id_list)
-def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
+def clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag):
     
     """
     Fixes invalid geometries and clips each loaded layer from the bbox_query function against the temporary overlay_layers
@@ -216,7 +220,6 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
     :param overlay_layer_list: A list of temporary overlay layers (one for each feature from the active layer)
     :param layer_id_list: A list layer ids (one for each feature in the active layer)
     """
-
     # make sure the overlay_layer_lists and layer_id_lists are the same length as the loaded_layer_list
     # this ensures that each of the features has an overlay to be clipped and named to
     # the loaded_layer_list will have [selected_layers x number of features] items.
@@ -225,18 +228,29 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list):
     layer_id_list = [layer_id_list[i % len(layer_id_list)] for i in range(len(loaded_layer_list))]
 
     for loaded_layer, overlay_layer, layer_id in zip(loaded_layer_list, overlay_layer_list, layer_id_list):
-        
-        # Fix invalid geometries before clipping
-        fixed_layer = processing.run('qgis:fixgeometries', 
-            {'INPUT': loaded_layer, 'OUTPUT': 'memory:'},
-        )["OUTPUT"]
 
-        # Clipping each of the selected layers to each feature in the active layer
-        layer_clip = processing.run('qgis:clip',
-            {'INPUT': fixed_layer,
-            'OVERLAY': overlay_layer,
-            'OUTPUT': "memory:"},
-        )["OUTPUT"]
+        if invalid_flag:
+            print("Fixing geometries...")
+            # Fix invalid geometries before clipping
+            fixed_layer = processing.run('qgis:fixgeometries', 
+                {'INPUT': loaded_layer, 'OUTPUT': 'memory:'},
+            )["OUTPUT"]
+
+            # Clipping each of the selected layers to each feature in the active layer
+            layer_clip = processing.run('qgis:clip',
+                {'INPUT': fixed_layer,
+                'OVERLAY': overlay_layer,
+                'OUTPUT': "memory:"},
+            )["OUTPUT"]
+
+        else:
+
+            # Clipping each of the selected layers to each feature in the active layer
+            layer_clip = processing.run('qgis:clip',
+                {'INPUT': loaded_layer,
+                'OVERLAY': overlay_layer,
+                'OUTPUT': "memory:"},
+            )["OUTPUT"]
 
         layer_clip_result = QgsProject.instance().addMapLayer(layer_clip, False)
 
@@ -429,10 +443,14 @@ if warn_dialog.exec_() == QDialog.Accepted:
                 overlay_layer_list.append(overlay_source)
 
             # query the API using the bboxes from each geometry
-            loaded_layer_list = layer_rest_request(bbox_list, selected_layers)
+            loaded_layer_list, invalid_flag = layer_rest_request(bbox_list, selected_layers)
                 
             # call the clipping function
-            clipping(loaded_layer_list, overlay_layer_list, layer_id_list)
+            # print(bbox_list)
+            # print(loaded_layer_list)
+            # print(invalid_flag)
+            # print("done")
+            clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
 
             # Remove the temporary layers after processing
             for temp_layer in temp_layers:
