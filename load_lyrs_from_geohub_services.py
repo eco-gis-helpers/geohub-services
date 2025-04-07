@@ -34,6 +34,25 @@ pyqgis_group = treeRoot.insertGroup(0, group_name)
 
 ### FUNCTIONS ############################################################################################
 
+# ----------- API Progress Bar -----------
+def create_progress_dialog(total_estimate):
+    progress = QProgressDialog("Fetching data from the Ontario Geohub...", "Cancel", 0, total_estimate)
+    progress.setMinimumWidth(500)
+    progress.setWindowModality(Qt.WindowModal)  # Modal window so user cannot interact with the map while loading
+    progress.setMinimumDuration(0)  # Show dialog immediately
+    progress.setValue(0)
+    return progress
+
+# ----------- Clipping Progress Bar --------
+
+def clipping_progress_dialog(total_estimate):
+    progress = QProgressDialog("Clipping features...", "Cancel", 0, total_estimate)
+    progress.setMinimumWidth(500)
+    progress.setWindowModality(Qt.WindowModal)  # Modal window so user cannot interact with the map while loading
+    progress.setMinimumDuration(0)  # Show dialog immediately
+    progress.setValue(0)
+    return progress
+
 # define the styles of the selected layers, from the style.py dictionary
 def set_layer_style(layer):
     layer_name = layer.name()
@@ -137,6 +156,7 @@ def rest_request(layer_list):
     :param layer_list: A list of layer ids and names.
     """
     for l in layer_list:
+        user_cancelled = False
 
         #Use this if you want to filter by more than bounding box
         #https://gis.stackexchange.com/questions/456167/pyqgis-add-arcgis-feature-service-layer-to-qgis-including-a-query
@@ -149,13 +169,36 @@ def rest_request(layer_list):
 
         if layer.isValid() and layer.featureCount() > 0:
 
+            # added a count of how many features are added to the map
+            total_estimate = layer.featureCount()
+            added_records = 0
+            
+            progress = create_progress_dialog(total_estimate)
+            progress.setWindowTitle(f"Fetching data for {layer.name()} layer...")
+            progress.show()
+
+            for i, feature in enumerate(layer.getFeatures()):
+                if progress.wasCanceled():
+                    print(f"User canceled loading for {l[1]}")
+                    treeRoot.removeChildNode(pyqgis_group)
+                    user_cancelled = True
+                    return user_cancelled
+
+                added_records += 1
+                progress.setValue(added_records)
+                progress.setLabelText(f"Fetching {layer.name()} data for canvas... {added_records} / {total_estimate}")
+                QApplication.processEvents()
+            
+            progress.setValue(total_estimate)
+
+            if user_cancelled:
+                break
+                
             set_layer_style(layer)
             projInstance.addMapLayer(layer, False)
             pyqgis_group.addLayer(layer)
 
-            # added a count of how many features are added to the map
-            feature_count = layer.featureCount()
-            print(f"{feature_count} feature(s) within {layer.name()} were added to the map.")
+            print(f"{total_estimate} feature(s) within {layer.name()} were added to the map.")
 
         elif layer.isValid() and layer.featureCount() == 0:
             print(f"No features exist: skipped layer {l}")
@@ -177,6 +220,8 @@ def layer_rest_request(bbox_list, layer_list):
     loaded_layer_list = []
     invalid_flag = None
     for l in layer_list:
+        user_cancelled = False
+        layer_num = 0
         for str_bbox in bbox_list:
             # Prepare bbox for the request
             str_bbox = f"{str_bbox.xMinimum()},{str_bbox.yMinimum()},{str_bbox.xMaximum()},{str_bbox.yMaximum()}"
@@ -191,19 +236,49 @@ def layer_rest_request(bbox_list, layer_list):
             layer = QgsVectorLayer(uri.uri(), f"{l[1]}", 'arcgisfeatureserver')
 
             if layer.isValid() and layer.featureCount() > 0:
+
+                total_estimate = layer.featureCount()
+                added_records = 0
+                
+                progress = create_progress_dialog(total_estimate)
+                progress.setWindowTitle(f"Fetching data for {layer.name()} layer...")
+                progress.show()
+
                 # Check for invalid geometries
-                for feature in layer.getFeatures():
+                for i, feature in enumerate(layer.getFeatures()):
+                    if progress.wasCanceled():
+                        print(f"User canceled loading for {l[1]}")
+                        treeRoot.removeChildNode(pyqgis_group)
+                        user_cancelled = True
+                        return user_cancelled
+
                     geometry = feature.geometry()
+
                     if not geometry.isGeosValid():
                         invalid_flag = True
                         print(f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.")
+                    
+                    added_records += 1
+                    progress.setValue(added_records)
+                    progress.setLabelText(f"Fetching data for feature {layer_num} in {layer.name()} layer... {added_records} / {total_estimate}")
+                    QApplication.processEvents()
+                
+                progress.setValue(total_estimate)
+
+                if user_cancelled:
+                    break
+                
                 loaded_layer_list.append(layer)
+
             elif layer.isValid() and layer.featureCount() == 0:
                 print(f"No features exist: skipped layer {l}")
                 loaded_layer_list.append(layer)
+
             else:
                 print(f"Invalid layer: failed to add layer {l}")
                 loaded_layer_list.append(layer)
+
+            layer_num += 1
 
     return loaded_layer_list, invalid_flag
 
@@ -463,7 +538,7 @@ if warn_dialog.exec_() == QDialog.Accepted:
             str_bbox = canvas_bbox_for_service(service_crs)
             rest_request(selected_layers)
 
-        print("Script complete")
+        # print("Script complete")
     else:
         treeRoot.removeChildNode(pyqgis_group)
         print("User clicked Cancel. Stopping script.")
