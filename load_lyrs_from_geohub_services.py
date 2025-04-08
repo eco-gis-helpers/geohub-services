@@ -39,7 +39,7 @@ pyqgis_group = treeRoot.insertGroup(0, group_name)
 
 def internet_on():
     try:
-        urllib.request.urlopen('https://api.gbif.org/', timeout=1)  # Open URL
+        urllib.request.urlopen('https://geohub.lio.gov.on.ca/', timeout=1)  # Open URL
         return True
     except urllib.error.URLError as err:  # Handle errors
         return False
