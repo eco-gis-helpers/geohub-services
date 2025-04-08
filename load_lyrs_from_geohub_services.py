@@ -34,6 +34,16 @@ pyqgis_group = treeRoot.insertGroup(0, group_name)
 
 ### FUNCTIONS ############################################################################################
 
+
+# ---------- Network connection test -------
+
+def internet_on():
+    try:
+        urllib.request.urlopen('https://api.gbif.org/', timeout=1)  # Open URL
+        return True
+    except urllib.error.URLError as err:  # Handle errors
+        return False
+
 # ----------- API Progress Bar -----------
 def create_progress_dialog(total_estimate):
     progress = QProgressDialog("Fetching data from the Ontario Geohub...", "Cancel", 0, total_estimate)
@@ -431,8 +441,10 @@ class LayerSelectionDialog(QDialog):
 
 # open the url request
 # TODO this could be hardcoded for simplicity, this logic was used to write v1 of this script but the response service crs shouldn't change...
-with urllib.request.urlopen(json_lio1) as url:
-    data = json.loads(url.read().decode())
+if internet_on():
+    with urllib.request.urlopen(json_lio1) as url:
+        data = json.loads(url.read().decode())
+
 # construct the url request for each selected crs
 
 service_crs = str(data['spatialReference']['latestWkid'])
@@ -450,109 +462,114 @@ dialog = LayerSelectionDialog(lio_list)
 
 
 def main():
-    if warn_dialog.exec_() == QDialog.Accepted:
-        print("Zoom warning accepted. Selecting layers of interest")
-        if dialog.exec_() == QDialog.Accepted:
-            selected_layers = dialog.selected_layers()
-            
-            # make a list to hold the temporary layers
-            temp_layers = []
-            if dialog.get_bbox_function() == "layer_bbox_for_service":
-                print("Querying by Active Layer")
+    if internet_on():
+        if warn_dialog.exec_() == QDialog.Accepted:
+            print("Zoom warning accepted. Selecting layers of interest")
+            if dialog.exec_() == QDialog.Accepted:
+                selected_layers = dialog.selected_layers()
+                
+                # make a list to hold the temporary layers
+                temp_layers = []
+                if dialog.get_bbox_function() == "layer_bbox_for_service":
+                    print("Querying by Active Layer")
 
-                # if no active layer, raise a value error and notify the user
-                # exiting out of the script with 'return' is really slow for some reason
-                # so raise a ValueError instead
-                if not active_layer:
-                    print("No layer selected!")
-                    iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
-                    print("No layer selected!")
-                    return
+                    # if no active layer, raise a value error and notify the user
+                    # exiting out of the script with 'return' is really slow for some reason
+                    # so raise a ValueError instead
+                    if not active_layer:
+                        print("No layer selected!")
+                        iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
+                        print("No layer selected!")
+                        return
 
-                # If the active layer is a raster, throw an error
-                elif active_layer.type() == QgsMapLayer.RasterLayer:
-                    print("The selected layer is a raster!")
-                    iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
-                    print("Selected layer is a raster!")
-                    return
+                    # If the active layer is a raster, throw an error
+                    elif active_layer.type() == QgsMapLayer.RasterLayer:
+                        print("The selected layer is a raster!")
+                        iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
+                        print("Selected layer is a raster!")
+                        return
 
-                # If the active layer is a multi-polygon or polygon, keep going!
-                elif QgsWkbTypes.displayString(active_layer.wkbType()) in ["MultiPolygon", "Polygon"]:
-                    pass
+                    # If the active layer is a multi-polygon or polygon, keep going!
+                    elif QgsWkbTypes.displayString(active_layer.wkbType()) in ["MultiPolygon", "Polygon"]:
+                        pass
 
-                # If the active layer is not a Polygon or MultiPolygon, throw an error
-                else:
-                    print("The selected layer needs to be a polygon!")
-                    iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
-                    print("Selected layer is not a polygon!")
-                    return
-                    
-                # get a list of the bboxes for each of these geometries
-                bbox_list = layer_bbox_for_service(service_crs)
+                    # If the active layer is not a Polygon or MultiPolygon, throw an error
+                    else:
+                        print("The selected layer needs to be a polygon!")
+                        iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
+                        print("Selected layer is not a polygon!")
+                        return
+                        
+                    # get a list of the bboxes for each of these geometries
+                    bbox_list = layer_bbox_for_service(service_crs)
 
-                layer_id_list = []
-                overlay_layer_list = []
+                    layer_id_list = []
+                    overlay_layer_list = []
 
-                for feature in active_layer.getFeatures():
-                    layer_id = feature.id()
-                    layer_id_list.append(layer_id)
-                    geometry = feature.geometry()
+                    for feature in active_layer.getFeatures():
+                        layer_id = feature.id()
+                        layer_id_list.append(layer_id)
+                        geometry = feature.geometry()
 
-                    # make temp layers of each feature in the active layer for the clipping function
-                    temp_layer_name = f"temp_clip_{layer_id}"
-                    # load the temp layers in memory
-                    temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
-                    temp_layer_provider = temp_layer.dataProvider()
+                        # make temp layers of each feature in the active layer for the clipping function
+                        temp_layer_name = f"temp_clip_{layer_id}"
+                        # load the temp layers in memory
+                        temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
+                        temp_layer_provider = temp_layer.dataProvider()
 
-                    # # Add the feature geometry to the temporary layer
-                    temp_feature = QgsFeature()
-                    temp_feature.setGeometry(geometry)
-                    temp_layer_provider.addFeature(temp_feature)
-                    temp_layer.updateExtents()
+                        # # Add the feature geometry to the temporary layer
+                        temp_feature = QgsFeature()
+                        temp_feature.setGeometry(geometry)
+                        temp_layer_provider.addFeature(temp_feature)
+                        temp_layer.updateExtents()
 
-                    # Add the temporary layer to the project (for visibility in processing)
-                    QgsProject.instance().addMapLayer(temp_layer)
-                    temp_layers.append(temp_layer)
-                    # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
-                    overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
+                        # Add the temporary layer to the project (for visibility in processing)
+                        QgsProject.instance().addMapLayer(temp_layer)
+                        temp_layers.append(temp_layer)
+                        # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
+                        overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
 
-                    overlay_layer_list.append(overlay_source)
+                        overlay_layer_list.append(overlay_source)
 
-                # query the API using the bboxes from each geometry
-                loaded_layer_list, invalid_flag = layer_rest_request(bbox_list, selected_layers)
+                    # query the API using the bboxes from each geometry
+                    loaded_layer_list, invalid_flag = layer_rest_request(bbox_list, selected_layers)
 
-                if loaded_layer_list is None and invalid_flag is None:
-                    print("Process was cancelled by user.")
-                    # Clean up temp layers even if cancelled
+                    if loaded_layer_list is None and invalid_flag is None:
+                        print("Process was cancelled by user.")
+                        # Clean up temp layers even if cancelled
+                        for temp_layer in temp_layers:
+                            QgsProject.instance().removeMapLayer(temp_layer)
+                        print("Cancelled Script")
+                        return
+                        
+                    clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
+
+                    # Remove the temporary layers after processing
                     for temp_layer in temp_layers:
                         QgsProject.instance().removeMapLayer(temp_layer)
-                    print("Cancelled Script")
-                    return
-                    
-                clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
 
-                # Remove the temporary layers after processing
-                for temp_layer in temp_layers:
-                    QgsProject.instance().removeMapLayer(temp_layer)
+                # otherwise the user selected the canvas bbox for query
+                elif dialog.get_bbox_function() == "canvas_bbox_for_service":
+                    print("Querying by Canvas")
+                    # get the canvas bbox and query the api
+                    str_bbox = canvas_bbox_for_service(service_crs)
+                    rest_request(selected_layers, str_bbox)
 
-            # otherwise the user selected the canvas bbox for query
-            elif dialog.get_bbox_function() == "canvas_bbox_for_service":
-                print("Querying by Canvas")
-                # get the canvas bbox and query the api
-                str_bbox = canvas_bbox_for_service(service_crs)
-                rest_request(selected_layers, str_bbox)
-
-            # print("Script complete")
+                # print("Script complete")
+            else:
+                treeRoot.removeChildNode(pyqgis_group)
+                print("User clicked Cancel. Stopping script.")
         else:
             treeRoot.removeChildNode(pyqgis_group)
             print("User clicked Cancel. Stopping script.")
+
+        # End Timer
+        end_time = time.time() 
+        elapsed_time = end_time - start_time
+        print(f"Script execution time: {elapsed_time:.2f} seconds")
     else:
         treeRoot.removeChildNode(pyqgis_group)
-        print("User clicked Cancel. Stopping script.")
-
-    # End Timer
-    end_time = time.time() 
-    elapsed_time = end_time - start_time
-    print(f"Script execution time: {elapsed_time:.2f} seconds")
+        print("Cannot establish connection to the network. Please check your internet and try again.")
+        iface.messageBar().pushMessage("Error", "Cannot establish connection to the network", level=Qgis.Critical)
 
 main()
