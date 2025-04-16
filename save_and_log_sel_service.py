@@ -269,5 +269,3 @@ if warn_dialog.exec_() == QDialog.Accepted:
         print("User clicked Cancel. Stopping script.")
 else:
     print("User clicked Cancel. Stopping script.")
-
-

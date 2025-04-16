@@ -6,7 +6,7 @@
 # - Define what the parts of each sub list are. 
 
 lio_list = [
-    ['33', 'Building As Symbol', '01'],
+    ['33', 'Building as Symbol', '01'],
     ['28', 'Spot Height', '01'],
     ['27', 'Bathymetry Point', '01'],
     ['6', 'OHN Hydrographic Point', '01'],
@@ -44,6 +44,8 @@ lio_list = [
     ['0', 'Province', '03'],
     ['18', 'Site District', '03'],
     ['19', 'Site Region', '03'],
+    ['19', 'Ontario Trail Network (OTN) Segment', '04'],
+    ['20', 'Ontario Trail Network (OTN) Access Point', '04'],
     ['20', 'Emergency Management Historical Event', '05'],
     ['21', 'Fire Aviation and Emergency Facility Point', '05'],
     ['10', 'Utility Site', '05'],
@@ -108,4 +110,5 @@ lio_list = [
     ['23', 'Forest Resource Inventory Status', '07'],
     ['25', 'Provincially Tracked Species 1km Grid', '07'],
     ['29', 'Wooded Area', '07'],
+
     ]
