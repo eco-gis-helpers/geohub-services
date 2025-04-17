@@ -4,8 +4,10 @@ import time
 from styles import layer_styles
 from lio_list import lio_list
 
-# Start Timer
-start_time = time.time() 
+# # Start Timer
+# start_time = time.time() 
+
+QgsMessageLog.logMessage("Starting script...", "Geohub-Services", level=Qgis.Info)
 print("Starting script...")
 
 ### Constants
@@ -96,6 +98,7 @@ def set_layer_style(layer):
             layer.triggerRepaint()
     else:
         iface.messageBar().pushMessage("Style Error", f"Layer '{layer_name}' not in style sheet", level=Qgis.Info)
+        QgsMessageLog.logMessage("Layer not in style sheet", "Geohub-Services", level=Qgis.Info)
         print(f"Layer '{layer_name}' not in style sheet")
 
 
@@ -140,6 +143,7 @@ def layer_bbox_for_service(service_crs, selected_polygon_layer):
 
     # if the active layers crs doesnt match the ESRI REST Service CRS, make a transformation
     if activeCrs.authid() != f"EPSG:{service_crs}":
+        QgsMessageLog.logMessage("Transformation needed...", "Geohub-Services", level=Qgis.Info)
         print("Tranformation needed...")
         tform = QgsCoordinateTransform(activeCrs, destCrs, QgsProject.instance())
 
@@ -188,7 +192,8 @@ def rest_request(layer_list, str_bbox):
 
             for i, feature in enumerate(layer.getFeatures()):
                 if progress.wasCanceled():
-                    print(f"User canceled loading for {l[1]}")
+                    QgsMessageLog.logMessage(f"Cancelled loading for {l[1]}", "Geohub-Services", level=Qgis.Info)
+                    print(f"User cancelled loading for {l[1]}")
                     treeRoot.removeChildNode(pyqgis_group)
                     user_cancelled = True
                     return user_cancelled
@@ -208,18 +213,23 @@ def rest_request(layer_list, str_bbox):
             pyqgis_group.addLayer(layer)
 
             iface.messageBar().pushMessage("Features added", f"{total_estimate} feature(s) within {layer.name()} were added to the map.", level=Qgis.Info)
+            QgsMessageLog.logMessage(f"{total_estimate} feature(s) within {layer.name()} were added to the map.", "Geohub-Services", level=Qgis.Info)
             print(f"{total_estimate} feature(s) within {layer.name()} were added to the map.")
 
 
         elif layer.isValid() and layer.featureCount() == 0:
             iface.messageBar().pushMessage("No features", f"No features exist: skipped layer {l}", level=Qgis.Info)
+            QgsMessageLog.logMessage(f"No features exist: skipped layer {l}", "Geohub-Services", level=Qgis.Info)
             print(f"No features exist: skipped layer {l}")
 
         else:
             iface.messageBar().pushMessage("Invalid layer", f"Invalid layer: failed to add layer {l}", level=Qgis.Info)
+            QgsMessageLog.logMessage(f"Invalid layer: failed to add layer {l}", "Geohub-Services", level=Qgis.Info)
             print(f"Invalid layer: failed to add layer {l}")
 
-    [print("Loading", x[1], "layer...") for x in layer_list]
+    for x in layer_list:
+        QgsMessageLog.logMessage(f"Loading", x[1], "layer...", "Geohub-Services", level=Qgis.Info)
+        print("Loading", x[1], "layer...")
 
 # function for when the user queries by an active layer
 # it takes a list of bboxs from the features geometries
@@ -262,6 +272,7 @@ def layer_rest_request(bbox_list, layer_list):
                     if progress.wasCanceled():
 
                         treeRoot.removeChildNode(pyqgis_group)
+                        QgsMessageLog.logMessage(f"User canceled loading for {l[1]}", "Geohub-Services", level=Qgis.Info)
                         print(f"User canceled loading for {l[1]}")
                         return None, None
                     
@@ -271,6 +282,7 @@ def layer_rest_request(bbox_list, layer_list):
                         invalid_flag = True
                         
                         iface.messageBar().pushMessage("Invalid geometry", f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.", level=Qgis.Info)
+                        QgsMessageLog.logMessage(f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.", "Geohub-Services", level=Qgis.Info)
                         print(f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.")
                     
                     added_records += 1
@@ -286,11 +298,13 @@ def layer_rest_request(bbox_list, layer_list):
             elif layer.isValid() and layer.featureCount() == 0:
                 
                 iface.messageBar().pushMessage("No features", f"No features exist: skipped layer {l}", level=Qgis.Info)
+                QgsMessageLog.logMessage(f"No features exist: skipped layer {l}", "Geohub-Services", level=Qgis.Info)
                 print(f"No features exist: skipped layer {l}")
                 loaded_layer_list.append(layer)
 
             else:
                 iface.messageBar().pushMessage("Invalid layer", f"Invalid layer: failed to add layer {l}", level=Qgis.Info)
+                QgsMessageLog.logMessage(f"Invalid layer: failed to add layer {l}", "Geohub-Services", level=Qgis.Info)
                 print(f"Invalid layer: failed to add layer {l}")
                 loaded_layer_list.append(layer)
 
@@ -321,6 +335,7 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
     for loaded_layer, overlay_layer, layer_id in zip(loaded_layer_list, overlay_layer_list, layer_id_list):
 
         if invalid_flag:
+            QgsMessageLog.logMessage("Fixing geometries...", "Geohub-Services", level=Qgis.Info)
             print("Fixing geometries...")
             # Fix invalid geometries before clipping
             fixed_layer = processing.run('qgis:fixgeometries', 
@@ -361,6 +376,7 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
             feature_count = layer_clip.featureCount()
 
             iface.messageBar().pushMessage("Layers added", f"{feature_count} feature(s) within {layer_name} were added to the map.", level=Qgis.Info)
+            QgsMessageLog.logMessage(f"{feature_count} feature(s) within {layer_name} were added to the map.", "Geohub-Services", level=Qgis.Info)
             print(f"{feature_count} feature(s) within {layer_name} were added to the map.")
             pyqgis_group.addLayer(layer_clip_result)
 
@@ -414,6 +430,7 @@ class PolygonDialog(QDialog):
             self.accept()
         else:
             iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Info)
+            QgsMessageLog.logMessage("No layer selected", "Geohub-Services", level=Qgis.Info)
             print("No layer selected!")
             raise ValueError("No layer selected!")
 
@@ -518,6 +535,7 @@ dialog = LayerSelectionDialog(lio_list)
 def main():
     if internet_on():
         if warn_dialog.exec_() == QDialog.Accepted:
+            QgsMessageLog.logMessage("Zoom warning accepted. Selecting layers of interest", "Geohub-Services", level=Qgis.Info)
             print("Zoom warning accepted. Selecting layers of interest")
             if dialog.exec_() == QDialog.Accepted:
                 selected_layers = dialog.selected_layers()
@@ -525,12 +543,14 @@ def main():
                 # make a list to hold the temporary layers
                 temp_layers = []
                 if dialog.get_bbox_function() == "layer_bbox_for_service":
+                    QgsMessageLog.logMessage("Querying by selected layer", "Geohub-Services", level=Qgis.Info)
                     print("Querying by selected layer")
 
                     polygon_dialog = PolygonDialog()
 
                     if polygon_dialog.exec_() == QDialog.Accepted:
                         selected_polygon_layer, layer_name = polygon_dialog.get_selected_layer()
+                        QgsMessageLog.logMessage(f"User selected polygon layer: {layer_name}", "Geohub-Services", level=Qgis.Info)
                         print(f"User selected polygon layer: {layer_name}")
 
                         # if no active layer, raise a value error and notify the user
@@ -539,13 +559,16 @@ def main():
                         if not selected_polygon_layer:
                             treeRoot.removeChildNode(pyqgis_group)
                             iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
+                            QgsMessageLog.logMessage("No layer selected!", "Geohub-Services", level=Qgis.Critical)
                             print("No layer selected!")
                             return
 
                         # If the active layer is a raster, throw an error
+                        # this shouldnt ever be possible with the new layer selection filter, but just in case
                         elif selected_polygon_layer.type() == QgsMapLayer.RasterLayer:
                             treeRoot.removeChildNode(pyqgis_group)
                             iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
+                            QgsMessageLog.logMessage("The selected layer is a raster!", "Geohub-Services", level=Qgis.Critical)
                             print("The selected layer is a raster!")
                             return
 
@@ -554,9 +577,11 @@ def main():
                             pass
 
                         # If the active layer is not a Polygon or MultiPolygon, throw an error
+                        # again, this shouldnt even be possible with the new layer selection filter, but just in case
                         else:
                             treeRoot.removeChildNode(pyqgis_group)
                             iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
+                            QgsMessageLog.logMessage("The selected layer needs to be a polygon!", "Geohub-Services", level=Qgis.Critical)
                             print("The selected layer needs to be a polygon!")
                             return
                             
@@ -595,7 +620,8 @@ def main():
                         loaded_layer_list, invalid_flag = layer_rest_request(bbox_list, selected_layers)
 
                         if loaded_layer_list is None and invalid_flag is None:
-                            print("Process was cancelled by user.")
+                            QgsMessageLog.logMessage("Script was cancelled", "Geohub-Services", level=Qgis.Info)
+                            print("Script was cancelled by user.")
                             # Clean up temp layers even if cancelled
                             for temp_layer in temp_layers:
                                 QgsProject.instance().removeMapLayer(temp_layer)
@@ -609,11 +635,13 @@ def main():
 
                     else:
                         treeRoot.removeChildNode(pyqgis_group)
+                        QgsMessageLog.logMessage("Cancelled polygon selection", "Geohub-Services", level=Qgis.Info)
                         print("User cancelled polygon selection")
                         return
 
                 # otherwise the user selected the canvas bbox for query
                 elif dialog.get_bbox_function() == "canvas_bbox_for_service":
+                    QgsMessageLog.logMessage("Querying by Canvas", "Geohub-Services", level=Qgis.Info)
                     print("Querying by Canvas")
                     # get the canvas bbox and query the api
                     str_bbox = canvas_bbox_for_service(service_crs)
@@ -622,18 +650,21 @@ def main():
                 # print("Script complete")
             else:
                 treeRoot.removeChildNode(pyqgis_group)
+                QgsMessageLog.logMessage("Script cancelled", "Geohub-Services", level=Qgis.Info)
                 print("User clicked Cancel. Stopping script.")
         else:
             treeRoot.removeChildNode(pyqgis_group)
+            QgsMessageLog.logMessage("Script cancelled", "Geohub-Services", level=Qgis.Info)
             print("User clicked Cancel. Stopping script.")
 
-        # End Timer
-        end_time = time.time() 
-        elapsed_time = end_time - start_time
-        print(f"Script execution time: {elapsed_time:.2f} seconds")
+        # # End Timer
+        # end_time = time.time() 
+        # elapsed_time = end_time - start_time
+        # print(f"Script execution time: {elapsed_time:.2f} seconds")
     else:
         treeRoot.removeChildNode(pyqgis_group)
         iface.messageBar().pushMessage("Error", "Cannot establish connection to the network", level=Qgis.Critical)
+        QgsMessageLog.logMessage("Cannot establish connection to the network", "Geohub-Services", level=Qgis.Critical)
         print("Cannot establish connection to the network. Please check your internet and try again.")
 
 main()
