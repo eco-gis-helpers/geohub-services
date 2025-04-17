@@ -4,9 +4,49 @@ import time
 from styles import layer_styles
 from lio_list import lio_list
 
+# Not required if running from QGIS console, but can improve the IDE experience ........
+from qgis.core import (
+    QgsProject,
+    QgsCoordinateReferenceSystem,
+    QgsVectorLayer,
+    QgsMarkerSymbol,
+    QgsSingleSymbolRenderer,
+    QgsLineSymbol,
+    QgsFillSymbol,
+    QgsCoordinateTransform,
+    QgsPointXY,
+    QgsDataSourceUri,
+    Qgis,
+    QgsMapLayer,
+    QgsProcessingFeatureSourceDefinition,
+    QgsFeature,
+    QgsWkbTypes
+    
+)
+from qgis.utils import iface
+from qgis.PyQt.QtWidgets import (
+    QProgressDialog, 
+    QApplication, 
+    QDialog, 
+    QVBoxLayout,
+    QDialogButtonBox,
+    QLabel,
+    QRadioButton, 
+    QScrollArea, 
+    QWidget,
+    QCheckBox
+    )
+from qgis.PyQt.QtCore import Qt
+from qgis import processing
+
+# .......................................................................................
+
+
 # Start Timer
 start_time = time.time() 
 print("Starting script...")
+
+
 
 ### Constants
 mapCanvas = iface.mapCanvas()
@@ -376,7 +416,6 @@ class WarningDialog(QDialog):
         self.setLayout(layout)
 
 
-# TODO it would be great to discuss how this works exactly and how challenging it would be to implement select multiple functionality
 class LayerSelectionDialog(QDialog):
     def __init__(self, layers):
         super().__init__()
