@@ -225,7 +225,7 @@ def rest_request(layer_list, str_bbox):
             print(f"Invalid layer: failed to add layer {l}")
 
     for x in layer_list:
-        QgsMessageLog.logMessage(f"Loading", x[1], "layer...", "Geohub-Services", level=Qgis.Info)
+        # QgsMessageLog.logMessage(f"Loading", x[1], "layer...", "Geohub-Services", level=Qgis.Info)
         print("Loading", x[1], "layer...")
 
 # function for when the user queries by a selected layer
