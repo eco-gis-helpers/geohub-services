@@ -18,8 +18,6 @@ jsonSlug = '?f=pjson'
 url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
 json_lio1 = url_lio+jsonSlug
 
-# get the users active layer
-active_layer = iface.activeLayer()
 
 ## Add an incrementing pyqgis group each time the script is run
 treeRoot = projInstance.layerTreeRoot()
@@ -97,6 +95,7 @@ def set_layer_style(layer):
             layer.setOpacity(opacity)
             layer.triggerRepaint()
     else:
+        iface.messageBar().pushMessage("Style Error", f"Layer '{layer_name}' not in style sheet", level=Qgis.Info)
         print(f"Layer '{layer_name}' not in style sheet")
 
 
@@ -126,7 +125,7 @@ def canvas_bbox_for_service(crs_string):
 
     return f"{minPoint.x()},{minPoint.y()},{maxPoint.x()},{maxPoint.y()}"
 
-def layer_bbox_for_service(service_crs):
+def layer_bbox_for_service(service_crs, selected_polygon_layer):
     """
     Returns a list of bounding boxes from the active layer's feature geometries,
     ensuring they are in EPSG:4269
@@ -137,7 +136,7 @@ def layer_bbox_for_service(service_crs):
 
     destCrs = QgsCoordinateReferenceSystem(int(service_crs))
     # Get the CRS of the active layer
-    activeCrs = active_layer.crs()
+    activeCrs = selected_polygon_layer.crs()
 
     # if the active layers crs doesnt match the ESRI REST Service CRS, make a transformation
     if activeCrs.authid() != f"EPSG:{service_crs}":
@@ -145,7 +144,7 @@ def layer_bbox_for_service(service_crs):
         tform = QgsCoordinateTransform(activeCrs, destCrs, QgsProject.instance())
 
     # reproject each feature
-    for feature in active_layer.getFeatures():
+    for feature in selected_polygon_layer.getFeatures():
         geometry = feature.geometry()
 
         # Reproject if necessary
@@ -208,12 +207,16 @@ def rest_request(layer_list, str_bbox):
             projInstance.addMapLayer(layer, False)
             pyqgis_group.addLayer(layer)
 
+            iface.messageBar().pushMessage("Features added", f"{total_estimate} feature(s) within {layer.name()} were added to the map.", level=Qgis.Info)
             print(f"{total_estimate} feature(s) within {layer.name()} were added to the map.")
 
+
         elif layer.isValid() and layer.featureCount() == 0:
+            iface.messageBar().pushMessage("No features", f"No features exist: skipped layer {l}", level=Qgis.Info)
             print(f"No features exist: skipped layer {l}")
 
         else:
+            iface.messageBar().pushMessage("Invalid layer", f"Invalid layer: failed to add layer {l}", level=Qgis.Info)
             print(f"Invalid layer: failed to add layer {l}")
 
     [print("Loading", x[1], "layer...") for x in layer_list]
@@ -266,6 +269,8 @@ def layer_rest_request(bbox_list, layer_list):
 
                     if not geometry.isGeosValid():
                         invalid_flag = True
+                        
+                        iface.messageBar().pushMessage("Invalid geometry", f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.", level=Qgis.Info)
                         print(f"Invalid geometry found in feature {feature.id()} in layer {l[1]}.")
                     
                     added_records += 1
@@ -279,10 +284,13 @@ def layer_rest_request(bbox_list, layer_list):
                 loaded_layer_list.append(layer)
 
             elif layer.isValid() and layer.featureCount() == 0:
+                
+                iface.messageBar().pushMessage("No features", f"No features exist: skipped layer {l}", level=Qgis.Info)
                 print(f"No features exist: skipped layer {l}")
                 loaded_layer_list.append(layer)
 
             else:
+                iface.messageBar().pushMessage("Invalid layer", f"Invalid layer: failed to add layer {l}", level=Qgis.Info)
                 print(f"Invalid layer: failed to add layer {l}")
                 loaded_layer_list.append(layer)
 
@@ -351,6 +359,8 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
         if layer_clip_result.isValid() and layer_clip_result.featureCount() > 0:
             # count the resulting features in each of the polygon features
             feature_count = layer_clip.featureCount()
+
+            iface.messageBar().pushMessage("Layers added", f"{feature_count} feature(s) within {layer_name} were added to the map.", level=Qgis.Info)
             print(f"{feature_count} feature(s) within {layer_name} were added to the map.")
             pyqgis_group.addLayer(layer_clip_result)
 
@@ -374,6 +384,44 @@ class WarningDialog(QDialog):
 
         layout.addWidget(button_box)
         self.setLayout(layout)
+
+
+class PolygonDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("Select Layer for Query")
+        self.setMinimumWidth(500)
+        self.setMinimumHeight(100)
+
+        self.map_layer_combo_box = QgsMapLayerComboBox()
+        self.map_layer_combo_box.setCurrentIndex(-1)
+        self.map_layer_combo_box.setFilters(QgsMapLayerProxyModel.PolygonLayer)
+
+        layout = QFormLayout()
+        layout.addWidget(self.map_layer_combo_box)
+        self.setLayout(layout)
+        self.show() 
+
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box.accepted.connect(self.validate_and_accept)
+        self.button_box.rejected.connect(self.reject)
+        layout.addWidget(self.button_box)
+
+    def validate_and_accept(self):
+        selected_layer = self.map_layer_combo_box.currentLayer()
+        if selected_layer:
+            self.accept()
+        else:
+            iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Info)
+            print("No layer selected!")
+            raise ValueError("No layer selected!")
+
+    def get_selected_layer(self):
+        layer = self.map_layer_combo_box.currentLayer()
+        if layer:
+            return layer, layer.name()
+        return None, None
 
 
 # TODO it would be great to discuss how this works exactly and how challenging it would be to implement select multiple functionality
@@ -451,7 +499,13 @@ service_crs = str(data['spatialReference']['latestWkid'])
 # print("Service CRS: ", service_crs)
 
 # make the warning dialog string and pass it to the class above
-warn_str = 'Please make sure you are zoomed in sufficiently!\nOtherwise QGIS may crash...'
+warn_str = (
+    "Please note:\n\n"
+    "- When querying by canvas, ensure you are sufficiently zoomed in to avoid performance issues \n"
+    "- When querying by selected layer, avoid using an excessive number of features or very large polygons \n\n"
+    "Otherwise, QGIS may become unresponsive or crash."
+)
+
 warn_dialog = WarningDialog(warn_str)
 
 # pass the lio list to the layer selection dialog class made above
@@ -471,82 +525,92 @@ def main():
                 # make a list to hold the temporary layers
                 temp_layers = []
                 if dialog.get_bbox_function() == "layer_bbox_for_service":
-                    print("Querying by Active Layer")
+                    print("Querying by selected layer")
 
-                    # if no active layer, raise a value error and notify the user
-                    # exiting out of the script with 'return' is really slow for some reason
-                    # so raise a ValueError instead
-                    if not active_layer:
-                        print("No layer selected!")
-                        iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
-                        print("No layer selected!")
-                        return
+                    polygon_dialog = PolygonDialog()
 
-                    # If the active layer is a raster, throw an error
-                    elif active_layer.type() == QgsMapLayer.RasterLayer:
-                        print("The selected layer is a raster!")
-                        iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
-                        print("Selected layer is a raster!")
-                        return
+                    if polygon_dialog.exec_() == QDialog.Accepted:
+                        selected_polygon_layer, layer_name = polygon_dialog.get_selected_layer()
+                        print(f"User selected polygon layer: {layer_name}")
 
-                    # If the active layer is a multi-polygon or polygon, keep going!
-                    elif QgsWkbTypes.displayString(active_layer.wkbType()) in ["MultiPolygon", "Polygon"]:
-                        pass
+                        # if no active layer, raise a value error and notify the user
+                        # exiting out of the script with 'return' is really slow for some reason
+                        # so raise a ValueError instead
+                        if not selected_polygon_layer:
+                            treeRoot.removeChildNode(pyqgis_group)
+                            iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
+                            print("No layer selected!")
+                            return
 
-                    # If the active layer is not a Polygon or MultiPolygon, throw an error
-                    else:
-                        print("The selected layer needs to be a polygon!")
-                        iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
-                        print("Selected layer is not a polygon!")
-                        return
-                        
-                    # get a list of the bboxes for each of these geometries
-                    bbox_list = layer_bbox_for_service(service_crs)
+                        # If the active layer is a raster, throw an error
+                        elif selected_polygon_layer.type() == QgsMapLayer.RasterLayer:
+                            treeRoot.removeChildNode(pyqgis_group)
+                            iface.messageBar().pushMessage("Error", "Selected layer is a raster!", level=Qgis.Critical)
+                            print("The selected layer is a raster!")
+                            return
 
-                    layer_id_list = []
-                    overlay_layer_list = []
+                        # If the active layer is a multi-polygon or polygon, keep going!
+                        elif QgsWkbTypes.displayString(selected_polygon_layer.wkbType()) in ["MultiPolygon", "Polygon"]:
+                            pass
 
-                    for feature in active_layer.getFeatures():
-                        layer_id = feature.id()
-                        layer_id_list.append(layer_id)
-                        geometry = feature.geometry()
+                        # If the active layer is not a Polygon or MultiPolygon, throw an error
+                        else:
+                            treeRoot.removeChildNode(pyqgis_group)
+                            iface.messageBar().pushMessage("Error", "Selected layer is not a polygon!", level=Qgis.Critical)
+                            print("The selected layer needs to be a polygon!")
+                            return
+                            
+                        # get a list of the bboxes for each of these geometries
+                        bbox_list = layer_bbox_for_service(service_crs, selected_polygon_layer)
 
-                        # make temp layers of each feature in the active layer for the clipping function
-                        temp_layer_name = f"temp_clip_{layer_id}"
-                        # load the temp layers in memory
-                        temp_layer = QgsVectorLayer("Polygon?crs=" + active_layer.crs().authid(), temp_layer_name, "memory")
-                        temp_layer_provider = temp_layer.dataProvider()
+                        layer_id_list = []
+                        overlay_layer_list = []
 
-                        # # Add the feature geometry to the temporary layer
-                        temp_feature = QgsFeature()
-                        temp_feature.setGeometry(geometry)
-                        temp_layer_provider.addFeature(temp_feature)
-                        temp_layer.updateExtents()
+                        for feature in selected_polygon_layer.getFeatures():
+                            layer_id = feature.id()
+                            layer_id_list.append(layer_id)
+                            geometry = feature.geometry()
 
-                        # Add the temporary layer to the project (for visibility in processing)
-                        QgsProject.instance().addMapLayer(temp_layer)
-                        temp_layers.append(temp_layer)
-                        # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
-                        overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
+                            # make temp layers of each feature in the active layer for the clipping function
+                            temp_layer_name = f"temp_clip_{layer_id}"
+                            # load the temp layers in memory
+                            temp_layer = QgsVectorLayer("Polygon?crs=" + selected_polygon_layer.crs().authid(), temp_layer_name, "memory")
+                            temp_layer_provider = temp_layer.dataProvider()
 
-                        overlay_layer_list.append(overlay_source)
+                            # # Add the feature geometry to the temporary layer
+                            temp_feature = QgsFeature()
+                            temp_feature.setGeometry(geometry)
+                            temp_layer_provider.addFeature(temp_feature)
+                            temp_layer.updateExtents()
 
-                    # query the API using the bboxes from each geometry
-                    loaded_layer_list, invalid_flag = layer_rest_request(bbox_list, selected_layers)
+                            # Add the temporary layer to the project (for visibility in processing)
+                            QgsProject.instance().addMapLayer(temp_layer)
+                            temp_layers.append(temp_layer)
+                            # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
+                            overlay_source = QgsProcessingFeatureSourceDefinition(temp_layer.id(), selectedFeaturesOnly=False)
 
-                    if loaded_layer_list is None and invalid_flag is None:
-                        print("Process was cancelled by user.")
-                        # Clean up temp layers even if cancelled
+                            overlay_layer_list.append(overlay_source)
+
+                        # query the API using the bboxes from each geometry
+                        loaded_layer_list, invalid_flag = layer_rest_request(bbox_list, selected_layers)
+
+                        if loaded_layer_list is None and invalid_flag is None:
+                            print("Process was cancelled by user.")
+                            # Clean up temp layers even if cancelled
+                            for temp_layer in temp_layers:
+                                QgsProject.instance().removeMapLayer(temp_layer)
+                            return
+                            
+                        clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
+
+                        # Remove the temporary layers after processing
                         for temp_layer in temp_layers:
                             QgsProject.instance().removeMapLayer(temp_layer)
-                        print("Cancelled Script")
-                        return
-                        
-                    clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
 
-                    # Remove the temporary layers after processing
-                    for temp_layer in temp_layers:
-                        QgsProject.instance().removeMapLayer(temp_layer)
+                    else:
+                        treeRoot.removeChildNode(pyqgis_group)
+                        print("User cancelled polygon selection")
+                        return
 
                 # otherwise the user selected the canvas bbox for query
                 elif dialog.get_bbox_function() == "canvas_bbox_for_service":
@@ -569,7 +633,7 @@ def main():
         print(f"Script execution time: {elapsed_time:.2f} seconds")
     else:
         treeRoot.removeChildNode(pyqgis_group)
-        print("Cannot establish connection to the network. Please check your internet and try again.")
         iface.messageBar().pushMessage("Error", "Cannot establish connection to the network", level=Qgis.Critical)
+        print("Cannot establish connection to the network. Please check your internet and try again.")
 
 main()
