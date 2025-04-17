@@ -15,11 +15,9 @@ mapCanvas = iface.mapCanvas()
 parent = iface.mainWindow()
 projInstance = QgsProject.instance()
 projCRS = mapCanvas.mapSettings().destinationCrs().authid()
-# ext = mapCanvas.extent() # the extent will change based on if the user selects "canvas" or "layer"
 jsonSlug = '?f=pjson'
 url_lio = f"https://ws.lioservices.lrc.gov.on.ca/arcgis2/rest/services/LIO_OPEN_DATA/LIO_Open01/MapServer/"
 json_lio1 = url_lio+jsonSlug
-
 
 ## Add an incrementing pyqgis group each time the script is run
 treeRoot = projInstance.layerTreeRoot()
@@ -138,10 +136,10 @@ def layer_bbox_for_service(service_crs, selected_polygon_layer):
     tform = None
 
     destCrs = QgsCoordinateReferenceSystem(int(service_crs))
-    # Get the CRS of the active layer
+    # Get the CRS of the selected polygon layer
     activeCrs = selected_polygon_layer.crs()
 
-    # if the active layers crs doesnt match the ESRI REST Service CRS, make a transformation
+    # if the selected polygon layers crs doesnt match the ESRI REST Service CRS, make a transformation
     if activeCrs.authid() != f"EPSG:{service_crs}":
         QgsMessageLog.logMessage("Transformation needed...", "Geohub-Services", level=Qgis.Info)
         print("Tranformation needed...")
@@ -157,7 +155,6 @@ def layer_bbox_for_service(service_crs, selected_polygon_layer):
 
         # Get bounding box in ESRI REST Service CRS
         bbox = geometry.boundingBox()
-        # print(bbox)
         bbox_list.append(bbox)
 
     return bbox_list
@@ -182,7 +179,7 @@ def rest_request(layer_list, str_bbox):
 
         if layer.isValid() and layer.featureCount() > 0:
 
-            # added a count of how many features are added to the map
+            # count how many features are added to the map
             total_estimate = layer.featureCount()
             added_records = 0
             
@@ -231,8 +228,7 @@ def rest_request(layer_list, str_bbox):
         QgsMessageLog.logMessage(f"Loading", x[1], "layer...", "Geohub-Services", level=Qgis.Info)
         print("Loading", x[1], "layer...")
 
-# function for when the user queries by an active layer
-# it takes a list of bboxs from the features geometries
+# function for when the user queries by a selected layer
 def layer_rest_request(bbox_list, layer_list):
     """
     Sends REST requests for each layer in the given list and flag invalid geometries to the user
@@ -327,7 +323,7 @@ def clipping(loaded_layer_list, overlay_layer_list, layer_id_list, invalid_flag)
     """
     # make sure the overlay_layer_lists and layer_id_lists are the same length as the loaded_layer_list
     # this ensures that each of the features has an overlay to be clipped and named to
-    # the loaded_layer_list will have [selected_layers x number of features] items.
+    # the loaded_layer_list will have [selected_layers multiplied by the number of features] items.
     # whereas the overlay_list will only have [number of features] items, so we use the modulo operator to match their lengths
     overlay_layer_list = [overlay_layer_list[i % len(overlay_layer_list)] for i in range(len(loaded_layer_list))]
     layer_id_list = [layer_id_list[i % len(layer_id_list)] for i in range(len(loaded_layer_list))]
@@ -401,7 +397,7 @@ class WarningDialog(QDialog):
         layout.addWidget(button_box)
         self.setLayout(layout)
 
-
+# Make the layer selection dropdown dialog
 class PolygonDialog(QDialog):
     def __init__(self):
         super().__init__()
@@ -429,8 +425,8 @@ class PolygonDialog(QDialog):
         if selected_layer:
             self.accept()
         else:
-            iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Info)
-            QgsMessageLog.logMessage("No layer selected", "Geohub-Services", level=Qgis.Info)
+            iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
+            QgsMessageLog.logMessage("No layer selected", "Geohub-Services", level=Qgis.Critical)
             print("No layer selected!")
             raise ValueError("No layer selected!")
 
@@ -510,10 +506,8 @@ if internet_on():
     with urllib.request.urlopen(json_lio1) as url:
         data = json.loads(url.read().decode())
 
-# construct the url request for each selected crs
 
 service_crs = str(data['spatialReference']['latestWkid'])
-# print("Service CRS: ", service_crs)
 
 # make the warning dialog string and pass it to the class above
 warn_str = (
@@ -553,9 +547,7 @@ def main():
                         QgsMessageLog.logMessage(f"User selected polygon layer: {layer_name}", "Geohub-Services", level=Qgis.Info)
                         print(f"User selected polygon layer: {layer_name}")
 
-                        # if no active layer, raise a value error and notify the user
-                        # exiting out of the script with 'return' is really slow for some reason
-                        # so raise a ValueError instead
+                        # if no selected layer, raise a value error and notify the user
                         if not selected_polygon_layer:
                             treeRoot.removeChildNode(pyqgis_group)
                             iface.messageBar().pushMessage("Error", "No layer selected!", level=Qgis.Critical)
@@ -563,7 +555,7 @@ def main():
                             print("No layer selected!")
                             return
 
-                        # If the active layer is a raster, throw an error
+                        # If the selected layer is a raster, throw an error
                         # this shouldnt ever be possible with the new layer selection filter, but just in case
                         elif selected_polygon_layer.type() == QgsMapLayer.RasterLayer:
                             treeRoot.removeChildNode(pyqgis_group)
@@ -572,11 +564,11 @@ def main():
                             print("The selected layer is a raster!")
                             return
 
-                        # If the active layer is a multi-polygon or polygon, keep going!
+                        # If the selected layer is a multi-polygon or polygon, keep going!
                         elif QgsWkbTypes.displayString(selected_polygon_layer.wkbType()) in ["MultiPolygon", "Polygon"]:
                             pass
 
-                        # If the active layer is not a Polygon or MultiPolygon, throw an error
+                        # If the selected layer is not a Polygon or MultiPolygon, throw an error
                         # again, this shouldnt even be possible with the new layer selection filter, but just in case
                         else:
                             treeRoot.removeChildNode(pyqgis_group)
@@ -585,7 +577,7 @@ def main():
                             print("The selected layer needs to be a polygon!")
                             return
                             
-                        # get a list of the bboxes for each of these geometries
+                        # get a list of the bboxes for each of the selected layers geometries
                         bbox_list = layer_bbox_for_service(service_crs, selected_polygon_layer)
 
                         layer_id_list = []
@@ -609,6 +601,7 @@ def main():
                             temp_layer.updateExtents()
 
                             # Add the temporary layer to the project (for visibility in processing)
+                            # TODO - do we need to show these temporary layers in the layers pane?
                             QgsProject.instance().addMapLayer(temp_layer)
                             temp_layers.append(temp_layer)
                             # Now that the layer is in the project, use it in the processing tool as the overlay for clipping
@@ -647,7 +640,6 @@ def main():
                     str_bbox = canvas_bbox_for_service(service_crs)
                     rest_request(selected_layers, str_bbox)
 
-                # print("Script complete")
             else:
                 treeRoot.removeChildNode(pyqgis_group)
                 QgsMessageLog.logMessage("Script cancelled", "Geohub-Services", level=Qgis.Info)
