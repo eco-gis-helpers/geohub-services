@@ -20,8 +20,8 @@ from qgis.core import (
     QgsMapLayer,
     QgsProcessingFeatureSourceDefinition,
     QgsFeature,
-    QgsWkbTypes
-    
+    QgsWkbTypes,
+    QgsMessageLog
 )
 from qgis.utils import iface
 from qgis.PyQt.QtWidgets import (
@@ -485,7 +485,7 @@ class LayerSelectionDialog(QDialog):
         layout = QVBoxLayout()
 
         # Radio buttons to choose between bbox functions
-        self.radio_layer_bbox = QRadioButton("Use selected layer for bbox")
+        self.radio_layer_bbox = QRadioButton("Select polygon layer for bbox")
         self.radio_canvas_bbox = QRadioButton("Use canvas for bbox")
         
         # Set default selection
@@ -517,7 +517,7 @@ class LayerSelectionDialog(QDialog):
 
         # Add the OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
+        button_box.accepted.connect(self.validate_and_accept)
         button_box.rejected.connect(self.reject)
 
         layout.addWidget(button_box)
@@ -529,6 +529,15 @@ class LayerSelectionDialog(QDialog):
             if checkbox.isChecked():
                 selected.append(layer)
         return selected
+    
+    def validate_and_accept(self):
+        if len(self.selected_layers()) > 0:
+            self.accept()
+        else:
+            iface.messageBar().pushMessage("Error", "No service layer selected!", level=Qgis.Critical)
+            QgsMessageLog.logMessage("No service layer selected", "Geohub-Services", level=Qgis.Critical)
+            print("No service layer selected!")
+            raise ValueError("No service layer selected!")
 
     def get_bbox_function(self):
         # Return the selected bounding box function
