@@ -4,11 +4,51 @@ import time
 from styles import layer_styles
 from lio_list import lio_list
 
+# Not required if running from QGIS console, but can improve the IDE experience ........
+from qgis.core import (
+    QgsProject,
+    QgsCoordinateReferenceSystem,
+    QgsVectorLayer,
+    QgsMarkerSymbol,
+    QgsSingleSymbolRenderer,
+    QgsLineSymbol,
+    QgsFillSymbol,
+    QgsCoordinateTransform,
+    QgsPointXY,
+    QgsDataSourceUri,
+    Qgis,
+    QgsMapLayer,
+    QgsProcessingFeatureSourceDefinition,
+    QgsFeature,
+    QgsWkbTypes,
+    QgsMessageLog
+)
+from qgis.utils import iface
+from qgis.PyQt.QtWidgets import (
+    QProgressDialog, 
+    QApplication, 
+    QDialog, 
+    QVBoxLayout,
+    QDialogButtonBox,
+    QLabel,
+    QRadioButton, 
+    QScrollArea, 
+    QWidget,
+    QCheckBox
+    )
+from qgis.PyQt.QtCore import Qt
+from qgis import processing
+
+# .......................................................................................
+
+
 # # Start Timer
 # start_time = time.time() 
 
 QgsMessageLog.logMessage("Starting script...", "Geohub-Services", level=Qgis.Info)
 print("Starting script...")
+
+
 
 ### Constants
 mapCanvas = iface.mapCanvas()
@@ -437,7 +477,6 @@ class PolygonDialog(QDialog):
         return None, None
 
 
-# TODO it would be great to discuss how this works exactly and how challenging it would be to implement select multiple functionality
 class LayerSelectionDialog(QDialog):
     def __init__(self, layers):
         super().__init__()
@@ -446,7 +485,7 @@ class LayerSelectionDialog(QDialog):
         layout = QVBoxLayout()
 
         # Radio buttons to choose between bbox functions
-        self.radio_layer_bbox = QRadioButton("Use selected layer for bbox")
+        self.radio_layer_bbox = QRadioButton("Select polygon layer for bbox")
         self.radio_canvas_bbox = QRadioButton("Use canvas for bbox")
         
         # Set default selection
@@ -478,7 +517,7 @@ class LayerSelectionDialog(QDialog):
 
         # Add the OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        button_box.accepted.connect(self.accept)
+        button_box.accepted.connect(self.validate_and_accept)
         button_box.rejected.connect(self.reject)
 
         layout.addWidget(button_box)
@@ -490,6 +529,15 @@ class LayerSelectionDialog(QDialog):
             if checkbox.isChecked():
                 selected.append(layer)
         return selected
+    
+    def validate_and_accept(self):
+        if len(self.selected_layers()) > 0:
+            self.accept()
+        else:
+            iface.messageBar().pushMessage("Error", "No service layer selected!", level=Qgis.Critical)
+            QgsMessageLog.logMessage("No service layer selected", "Geohub-Services", level=Qgis.Critical)
+            print("No service layer selected!")
+            raise ValueError("No service layer selected!")
 
     def get_bbox_function(self):
         # Return the selected bounding box function
