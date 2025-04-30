@@ -34,7 +34,8 @@ from qgis.PyQt.QtWidgets import (
     QRadioButton, 
     QScrollArea, 
     QWidget,
-    QCheckBox
+    QCheckBox,
+    QLineEdit
     )
 from qgis.PyQt.QtCore import Qt
 from qgis import processing
@@ -487,6 +488,10 @@ class LayerSelectionDialog(QDialog):
         # Radio buttons to choose between bbox functions
         self.radio_layer_bbox = QRadioButton("Select polygon layer for bbox")
         self.radio_canvas_bbox = QRadioButton("Use canvas for bbox")
+
+        # Search bar
+        self.search_bar = QLineEdit()
+        self.search_bar.textChanged.connect(self.update_display)
         
         # Set default selection
         self.radio_canvas_bbox.setChecked(True)
@@ -494,6 +499,9 @@ class LayerSelectionDialog(QDialog):
         # Add radio buttons to the layout
         layout.addWidget(self.radio_layer_bbox)
         layout.addWidget(self.radio_canvas_bbox)
+
+        # Add search bar to layout
+        layout.addWidget(self.search_bar)
 
         # Make it scrollable for layers
         scroll_area = QScrollArea()
@@ -508,6 +516,7 @@ class LayerSelectionDialog(QDialog):
         self.checkboxes = []
         for layer in layers:
             checkbox = QCheckBox(layer[1])
+            checkbox.setObjectName(layer[1])
             checkbox.setChecked(False)  # By default, no layers are selected
             scroll_layout.addWidget(checkbox)
             self.checkboxes.append(checkbox)
@@ -545,6 +554,13 @@ class LayerSelectionDialog(QDialog):
             return "layer_bbox_for_service"
         else:
             return "canvas_bbox_for_service"
+        
+    def update_display(self, text):
+        for widget in self.checkboxes:
+            if text.lower() in widget.objectName().lower():
+                widget.show()
+            else:
+                widget.hide()
 
 ## END of CLASSES #####################################################################################
 
