@@ -492,6 +492,7 @@ class LayerSelectionDialog(QDialog):
         # Search bar
         self.search_bar = QLineEdit()
         self.search_bar.textChanged.connect(self.update_display)
+        self.no_result = QLabel("No layers found")
         
         # Set default selection
         self.radio_canvas_bbox.setChecked(True)
@@ -502,6 +503,7 @@ class LayerSelectionDialog(QDialog):
 
         # Add search bar to layout
         layout.addWidget(self.search_bar)
+        
 
         # Make it scrollable for layers
         scroll_area = QScrollArea()
@@ -522,7 +524,9 @@ class LayerSelectionDialog(QDialog):
             self.checkboxes.append(checkbox)
 
         scroll_area.setWidget(widget)
+        scroll_layout.addWidget(self.no_result)
         layout.addWidget(scroll_area)
+        self.no_result.hide()
 
         # Add the OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -556,11 +560,18 @@ class LayerSelectionDialog(QDialog):
             return "canvas_bbox_for_service"
         
     def update_display(self, text):
-        for widget in self.checkboxes:
-            if text.lower() in widget.objectName().lower():
-                widget.show()
+        any_visible = False
+        for checkbox in self.checkboxes:
+            if text.lower() in checkbox.objectName().lower():
+                checkbox.show()
+                self.no_result.hide()
+                any_visible = True
             else:
-                widget.hide()
+                self.no_result.hide()
+                checkbox.hide()
+        
+        if not any_visible:
+            self.no_result.show()
 
 ## END of CLASSES #####################################################################################
 
