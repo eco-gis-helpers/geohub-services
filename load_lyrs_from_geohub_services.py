@@ -35,7 +35,8 @@ from qgis.PyQt.QtWidgets import (
     QScrollArea, 
     QWidget,
     QCheckBox,
-    QLineEdit
+    QLineEdit,
+    QFrame
     )
 from qgis.PyQt.QtCore import Qt
 from qgis import processing
@@ -491,6 +492,7 @@ class LayerSelectionDialog(QDialog):
 
         # Search bar
         self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Type to filter layers...")
         self.search_bar.textChanged.connect(self.update_display)
         self.no_result = QLabel("No layers found")
         
@@ -500,6 +502,11 @@ class LayerSelectionDialog(QDialog):
         # Add radio buttons to the layout
         layout.addWidget(self.radio_layer_bbox)
         layout.addWidget(self.radio_canvas_bbox)
+
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
 
         # Add search bar to layout
         layout.addWidget(self.search_bar)
