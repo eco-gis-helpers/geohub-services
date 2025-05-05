@@ -34,7 +34,9 @@ from qgis.PyQt.QtWidgets import (
     QRadioButton, 
     QScrollArea, 
     QWidget,
-    QCheckBox
+    QCheckBox,
+    QLineEdit,
+    QFrame
     )
 from qgis.PyQt.QtCore import Qt
 from qgis import processing
@@ -487,6 +489,12 @@ class LayerSelectionDialog(QDialog):
         # Radio buttons to choose between bbox functions
         self.radio_layer_bbox = QRadioButton("Select polygon layer for bbox")
         self.radio_canvas_bbox = QRadioButton("Use canvas for bbox")
+
+        # Search bar
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Type to filter layers...")
+        self.search_bar.textChanged.connect(self.update_display)
+        self.no_result = QLabel("No layers found")
         
         # Set default selection
         self.radio_canvas_bbox.setChecked(True)
@@ -494,6 +502,15 @@ class LayerSelectionDialog(QDialog):
         # Add radio buttons to the layout
         layout.addWidget(self.radio_layer_bbox)
         layout.addWidget(self.radio_canvas_bbox)
+
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        layout.addWidget(line)
+
+        # Add search bar to layout
+        layout.addWidget(self.search_bar)
+        
 
         # Make it scrollable for layers
         scroll_area = QScrollArea()
@@ -508,12 +525,15 @@ class LayerSelectionDialog(QDialog):
         self.checkboxes = []
         for layer in layers:
             checkbox = QCheckBox(layer[1])
+            checkbox.setObjectName(layer[1])
             checkbox.setChecked(False)  # By default, no layers are selected
             scroll_layout.addWidget(checkbox)
             self.checkboxes.append(checkbox)
 
         scroll_area.setWidget(widget)
+        scroll_layout.addWidget(self.no_result)
         layout.addWidget(scroll_area)
+        self.no_result.hide()
 
         # Add the OK and Cancel buttons
         button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
@@ -545,6 +565,20 @@ class LayerSelectionDialog(QDialog):
             return "layer_bbox_for_service"
         else:
             return "canvas_bbox_for_service"
+        
+    def update_display(self, text):
+        any_visible = False
+        for checkbox in self.checkboxes:
+            if text.lower() in checkbox.objectName().lower():
+                checkbox.show()
+                self.no_result.hide()
+                any_visible = True
+            else:
+                self.no_result.hide()
+                checkbox.hide()
+        
+        if not any_visible:
+            self.no_result.show()
 
 ## END of CLASSES #####################################################################################
 
